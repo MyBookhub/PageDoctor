@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Läufe · PageDoctor{% endblock %}
+{% block content %}
+<p class="section-label">Verlauf</p>
+<h1>Bisherige Prüfungen</h1>
+{% if not runs %}
+  <p class="empty">Noch keine Prüfungen. <a href="/">Erste Prüfung starten →</a></p>
+{% else %}
+<table class="runs">
+  <thead>
+    <tr><th>Dokument</th><th>Zeit</th><th>Modus</th><th>Status</th><th>Anmerkungen</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for run in runs %}
+    <tr>
+      <td><a href="{{ run.doc_url }}" target="_blank" rel="noopener">{{ run.doc_id[:18] }}…</a></td>
+      <td class="muted">{{ run.started_at_label }}</td>
+      <td>{{ run.modes_label }}</td>
+      <td><span id="progress-{{ run.id }}" class="badge badge--{{ run.tone }}">{{ run.status_label }}</span></td>
+      <td>{{ run.finding_count }}</td>
+      <td>
+        {% if run.can_resume %}
+        <button class="btn btn--outline"
+                hx-post="/runs/{{ run.id }}/resume"
+                hx-vals='{"csrf_token": "{{ csrf_token }}"}'
+                hx-target="#progress-{{ run.id }}"
+                hx-swap="outerHTML">Fortsetzen</button>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

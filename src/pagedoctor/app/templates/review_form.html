@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Neue Prüfung · PageDoctor{% endblock %}
+{% block content %}
+<p class="section-label">Korrektorat & Lektorat</p>
+<h1>Neue Prüfung starten</h1>
+<p class="lead">Füge den Link zum Google-Dokument ein, wähle die Einstellungen und starte die
+Prüfung. Sophie Hoffmann liest das Manuskript und hinterlässt ihre Anmerkungen als
+Kommentare im Dokument.</p>
+
+<div class="card" style="margin-top:32px">
+  <form hx-post="/review" hx-target="#result" hx-swap="innerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div class="field">
+      <label for="doc_url">Google-Docs-Link oder Dokument-ID</label>
+      <input class="form-input" id="doc_url" name="doc_url" required
+             placeholder="https://docs.google.com/document/d/…/edit">
+      <span class="hint">Das Dokument muss als Bearbeiter für das Sophie-Service-Konto
+      freigegeben sein.</span>
+    </div>
+
+    <div class="field">
+      <label>Prüfmodus</label>
+      {% for value, label in mode_options %}
+      <label class="check"><input type="checkbox" name="modes" value="{{ value }}"> {{ label }}</label>
+      {% endfor %}
+    </div>
+
+    <div class="field">
+      <label for="book_type">Buchtyp</label>
+      <select id="book_type" name="book_type">
+        {% for value, label in book_type_options %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="strictness">Prüftiefe</label>
+      <select id="strictness" name="strictness">
+        {% for value, label in strictness_options %}
+        <option value="{{ value }}"{% if value == 'standard' %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="custom_dictionary">Eigenes Wörterbuch <span class="muted">(optional)</span></label>
+      <textarea id="custom_dictionary" name="custom_dictionary"
+                placeholder="Begriffe, die Sophie nicht beanstanden soll – einer pro Zeile oder mit Komma getrennt"></textarea>
+    </div>
+
+    <div class="field">
+      <label class="check"><input type="checkbox" name="recipe_mode" value="true">
+      Rezeptmodus (nur Kochbücher): Mengen, Zutaten und Temperaturen prüfen</label>
+    </div>
+
+    <button class="btn btn--coral" type="submit">Prüfung starten</button>
+  </form>
+
+  <div id="result"></div>
+</div>
+{% endblock %}
