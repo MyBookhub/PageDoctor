@@ -2,15 +2,11 @@ import hashlib
 
 from pagedoctor.domain.models.finding import Finding
 
-# Truncated to keep the marker embedded in each comment short while staying
-# collision-safe for one document's findings.
-_KEY_LENGTH = 16
+KEY_LENGTH = 16
 _SEP = "\x00"
 
 
 def finding_key(doc_id: str, finding: Finding) -> str:
-    # Stable identity per §10: same doc + quote + change + category -> same key,
-    # so a retry never double-posts. Shared with the orchestrator's checkpoint (#5).
     suggestion = finding.suggestion
     material = _SEP.join(
         (
@@ -28,4 +24,4 @@ def consistency_report_key(doc_id: str) -> str:
 
 
 def _digest(material: str) -> str:
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:_KEY_LENGTH]
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:KEY_LENGTH]

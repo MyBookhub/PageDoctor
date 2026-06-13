@@ -14,7 +14,11 @@ from pagedoctor.domain.errors import (
 from pagedoctor.domain.models.consistency import ConsistencyReport, TermVariant
 from pagedoctor.domain.models.finding import Category, Finding
 from pagedoctor.domain.models.run import ReviewRun
-from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
+from pagedoctor.domain.services.idempotency import (
+    KEY_LENGTH,
+    consistency_report_key,
+    finding_key,
+)
 from pagedoctor.logging import get_logger
 
 if TYPE_CHECKING:
@@ -22,9 +26,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# Recovers the per-finding key embedded in a comment so re-posting is safe even
-# without the persisted checkpoint (which #5 populates).
-_MARKER = re.compile(r"\[#([0-9a-f]+)\]")
+_MARKER = re.compile(rf"\[#([0-9a-f]{{{KEY_LENGTH}}})\]")
 _LIST_FIELDS = "comments(content),nextPageToken"
 _CATEGORY_LABELS = {Category.PROOFREADING: "Korrektorat", Category.EDITING: "Lektorat"}
 
@@ -36,8 +38,6 @@ class CommentsOutputAdapter:
     def write_findings(
         self, run: ReviewRun, findings: Sequence[Finding], report: ConsistencyReport
     ) -> None:
-        # Comments-only (§8): never documents.batchUpdate. Idempotent via the doc's own
-        # markers unioned with the run checkpoint, so a retry never double-posts (§10).
         already = set(run.posted_finding_keys) | self.posted_keys_in_doc(run.doc_id)
         posted = 0
         for finding in findings:

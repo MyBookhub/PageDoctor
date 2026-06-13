@@ -100,7 +100,6 @@ def test_never_edits_the_manuscript() -> None:
 
     _adapter(client).write_findings(_run(), [_finding()], _report(empty=True))
 
-    # Comments-only (§8): no Docs batchUpdate anywhere in the call record.
     assert not any("batchUpdate" in str(call) for call in client.mock_calls)
     assert not any("documents" in str(call) for call in client.mock_calls)
 
@@ -149,7 +148,6 @@ def test_re_posting_the_same_run_creates_no_duplicates() -> None:
     adapter = _adapter(client)
     adapter.write_findings(_run(), findings, _report())
 
-    # Second run sees the comments the first run wrote (markers and all).
     existing = [{"content": body} for body in _created_bodies(client)]
     client.comments.return_value.list.return_value.execute.return_value = {"comments": existing}
     client.comments.return_value.create.reset_mock()
@@ -157,6 +155,16 @@ def test_re_posting_the_same_run_creates_no_duplicates() -> None:
     adapter.write_findings(_run(), findings, _report())
 
     assert client.comments.return_value.create.call_count == 0
+
+
+def test_short_marker_in_existing_comment_is_not_treated_as_a_key() -> None:
+    client = _service(existing=[{"content": "Anmerkung [#1] siehe [#abc] oben."}])
+    finding = _finding()
+
+    _adapter(client).write_findings(_run(), [finding], _report(empty=True))
+
+    finding_comments = [b for b in _created_bodies(client) if "Konsistenzbericht" not in b]
+    assert len(finding_comments) == 1
 
 
 def test_findings_in_the_run_checkpoint_are_skipped() -> None:
@@ -168,7 +176,6 @@ def test_findings_in_the_run_checkpoint_are_skipped() -> None:
     )
 
     bodies = _created_bodies(client)
-    # The finding is skipped; only the consistency report is posted.
     assert all("Konsistenzbericht" in body for body in bodies)
     assert len(bodies) == 1
 
