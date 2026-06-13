@@ -8,7 +8,6 @@ from pagedoctor.domain.services.idempotency import consistency_report_key, findi
 
 class FakeOutputPort:
     def __init__(self) -> None:
-        # key -> body, mirroring the real adapter's idempotent, post-once behaviour.
         self.posted: dict[str, str] = {}
 
     def write_findings(

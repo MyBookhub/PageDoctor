@@ -20,7 +20,6 @@ class GoogleDocsSource:
         self._docs = docs_service
 
     def read(self, doc_id: str) -> SourceDocument:
-        # Re-read fresh every run: indices shift if the creator edits between passes (§8).
         try:
             document = self._docs.documents().get(documentId=doc_id).execute()
         except HttpError as error:
@@ -50,8 +49,6 @@ def collect_text(
     segments: list[IndexSegment],
     offset: int,
 ) -> int:
-    # Walks paragraphs and table cells, building plain text and a plain-text -> Docs-API
-    # index map (one segment per text run) so a future native adapter can resolve spans.
     for element in content:
         paragraph = element.get("paragraph")
         if paragraph is not None:

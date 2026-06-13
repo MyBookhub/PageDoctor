@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
 
 def _document() -> dict[str, Any]:
-    # Two paragraphs (one split across runs) plus a one-cell table.
     return {
         "body": {
             "content": [
@@ -96,7 +95,6 @@ def test_read_builds_index_map_mapping_runs_to_docs_indices() -> None:
     index_map = source.read("doc-1").index_map
 
     assert index_map.plain_text_length == 26
-    # One segment per non-empty text run, including the one inside the table cell.
     spans = [(s.text_start, s.text_end, s.doc_start_index) for s in index_map.segments]
     assert spans == [
         (0, 12, 1),

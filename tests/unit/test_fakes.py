@@ -59,7 +59,6 @@ def _empty_report() -> ConsistencyReport:
 
 def test_fake_satisfies_port_and_scripts_findings() -> None:
     finding = _finding()
-    # The annotation makes mypy verify FakeLlmProvider satisfies the Protocol.
     provider: LlmProviderPort = FakeLlmProvider(responses={0: ChunkFindings(findings=[finding])})
     chunk = TextChunk(index=0, text="Rezpet", start_offset=0, end_offset=6)
     assert provider.analyze(chunk, _config()).findings == [finding]
