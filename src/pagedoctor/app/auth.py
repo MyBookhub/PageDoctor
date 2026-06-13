@@ -4,8 +4,8 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
+from pagedoctor.app.container import get_container
 from pagedoctor.app.errors import InvalidReviewForm
-from pagedoctor.config import Settings
 
 CSRF_SESSION_KEY = "csrf_token"
 
@@ -30,7 +30,7 @@ def require_auth(
     request: Request,
     credentials: Annotated[HTTPBasicCredentials | None, Depends(_basic)],
 ) -> None:
-    settings: Settings = request.app.state.container.settings
+    settings = get_container(request).settings
     user = settings.basic_auth_user
     password = settings.basic_auth_password
     if not user or password is None:

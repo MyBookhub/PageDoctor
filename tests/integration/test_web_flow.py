@@ -157,4 +157,5 @@ def test_pages_never_leak_manuscript_or_finding_text() -> None:
 
     for rendered in (runs_html, progress):
         assert DOC_TEXT not in rendered
-        assert "ist dunkelbraun" not in rendered
+        assert "ist dunkelbraun" not in rendered  # the proposed change
+        assert "Präziser." not in rendered  # the finding's German reason

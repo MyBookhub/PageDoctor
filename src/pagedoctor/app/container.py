@@ -2,6 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import anthropic
+from fastapi import Request
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -22,6 +23,13 @@ class Container:
     settings: Settings
     repository: RunRepositoryPort
     build_orchestrator: Callable[[int | None], ReviewOrchestrator]
+
+
+def get_container(request: Request) -> Container:
+    container = request.app.state.container
+    if not isinstance(container, Container):
+        raise RuntimeError("application container is not initialised")
+    return container
 
 
 def build_container(settings: Settings) -> Container:

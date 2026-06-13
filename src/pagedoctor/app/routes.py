@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from pagedoctor.app.auth import require_auth, verify_csrf
-from pagedoctor.app.container import Container
+from pagedoctor.app.container import get_container
 from pagedoctor.app.doc_url import parse_doc_id
 from pagedoctor.app.errors import InvalidReviewForm
 from pagedoctor.app.view_models import form_context, progress_context, runs_context
@@ -30,26 +30,20 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 router = APIRouter(dependencies=[Depends(require_auth)])
 
 
-def get_container(request: Request) -> Container:
-    container = request.app.state.container
-    assert isinstance(container, Container)
-    return container
-
-
 def execute_in_background(orchestrator: ReviewOrchestrator, run: ReviewRun) -> None:
     try:
         orchestrator.execute(run)
     except Exception:
         # The orchestrator has already persisted the run as FAILED; the UI surfaces it via
         # the progress poll. Swallow here so a background failure can't crash the worker.
-        logger.info("background review run failed")
+        logger.warning("background review run failed", extra={"run_id": str(run.id)})
 
 
 def resume_in_background(orchestrator: ReviewOrchestrator, run_id: UUID) -> None:
     try:
         orchestrator.resume(run_id)
     except Exception:
-        logger.info("background review resume failed")
+        logger.warning("background review resume failed", extra={"run_id": str(run_id)})
 
 
 def build_review_config(
