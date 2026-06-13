@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Sequence
 
 import pytest
 
@@ -9,6 +10,7 @@ from fakes.output import FakeOutputPort
 from fakes.run_repository import InMemoryRunRepository
 from pagedoctor.domain.errors import CommentPostingError, RunNotFoundError
 from pagedoctor.domain.models.config import BookType, CheckMode, ReviewConfig, Strictness
+from pagedoctor.domain.models.consistency import ConsistencyReport
 from pagedoctor.domain.models.document import IndexMap, SourceDocument
 from pagedoctor.domain.models.finding import (
     Category,
@@ -21,6 +23,7 @@ from pagedoctor.domain.models.run import ReviewRun, RunStatus
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
+from pagedoctor.logging import get_correlation_id
 
 DOC_ID = "doc-1"
 DOC_TEXT = "Der Hund ist braun. Die Katze schläft tief."
@@ -182,3 +185,33 @@ def test_resume_unknown_run_raises() -> None:
     orchestrator = _orchestrator(InMemoryRunRepository(), FakeOutputPort(), _provider())
     with pytest.raises(RunNotFoundError):
         orchestrator.resume(uuid.uuid4())
+
+
+def test_run_binds_correlation_id_for_downstream_logs_then_resets() -> None:
+    seen: list[str] = []
+
+    class CapturingOutput:
+        def write_findings(
+            self,
+            run: ReviewRun,
+            findings: Sequence[Finding],
+            report: ConsistencyReport,
+        ) -> None:
+            seen.append(get_correlation_id())
+
+    repository = InMemoryRunRepository()
+    orchestrator = ReviewOrchestrator(
+        source=FakeDocumentSource({DOC_ID: _document()}),
+        engine=EditingEngine(_provider("ist braun")),
+        output=CapturingOutput(),
+        repository=repository,
+        clock=FakeClock(),
+    )
+
+    run = orchestrator.start(DOC_ID, _config())
+
+    # Downstream work runs under the run's correlation id, not the default "-".
+    assert seen == [run.correlation_id]
+    assert seen[0] != "-"
+    # The context var is reset after the run, so it never leaks into later work.
+    assert get_correlation_id() == "-"

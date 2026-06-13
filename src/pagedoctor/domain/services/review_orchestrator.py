@@ -10,7 +10,7 @@ from pagedoctor.domain.ports.output import OutputPort
 from pagedoctor.domain.ports.run_repository import RunRepositoryPort
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
-from pagedoctor.logging import get_logger
+from pagedoctor.logging import get_logger, reset_correlation_id, set_correlation_id
 
 logger = get_logger(__name__)
 
@@ -52,26 +52,32 @@ class ReviewOrchestrator:
         return self.execute(run)
 
     def execute(self, run: ReviewRun) -> ReviewRun:
-        running = run.model_copy(
-            update={
-                "status": RunStatus.RUNNING,
-                "started_at": run.started_at or self._clock.now(),
-                "finished_at": None,
-            }
-        )
-        self._repository.save(running)
-        logger.info("review run started", extra={"run_id": str(running.id)})
+        # Bind the run's correlation id so every downstream log (engine, source, output)
+        # is traceable to this run; reset it after so it never leaks across runs/threads.
+        token = set_correlation_id(run.correlation_id)
         try:
-            return self.read_analyze_write(running)
-        except Exception:
-            # Record the failure durably before it propagates, so a half-written doc is
-            # never represented as a finished run; the boundary maps the raised error.
-            failed = running.model_copy(
-                update={"status": RunStatus.FAILED, "finished_at": self._clock.now()}
+            running = run.model_copy(
+                update={
+                    "status": RunStatus.RUNNING,
+                    "started_at": run.started_at or self._clock.now(),
+                    "finished_at": None,
+                }
             )
-            self._repository.save(failed)
-            logger.info("review run failed", extra={"run_id": str(failed.id)})
-            raise
+            self._repository.save(running)
+            logger.info("review run started", extra={"run_id": str(running.id)})
+            try:
+                return self.read_analyze_write(running)
+            except Exception:
+                # Record the failure durably before it propagates, so a half-written doc is
+                # never represented as a finished run; the boundary maps the raised error.
+                failed = running.model_copy(
+                    update={"status": RunStatus.FAILED, "finished_at": self._clock.now()}
+                )
+                self._repository.save(failed)
+                logger.info("review run failed", extra={"run_id": str(failed.id)})
+                raise
+        finally:
+            reset_correlation_id(token)
 
     def read_analyze_write(self, run: ReviewRun) -> ReviewRun:
         document = self._source.read(run.doc_id)
