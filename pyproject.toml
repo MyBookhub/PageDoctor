@@ -11,10 +11,12 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "anthropic>=0.40",
+    "google-api-python-client>=2.0",
+    "google-auth>=2.0",
 ]
 
-# Remaining adapter libraries (SQLAlchemy, alembic, google-*, psycopg) are added
-# by the issues that introduce their adapter (#4-#6), not here.
+# Remaining adapter libraries (SQLAlchemy, alembic, psycopg) are added by the
+# issues that introduce their adapter (#5-#6), not here.
 
 [dependency-groups]
 dev = [
@@ -22,6 +24,7 @@ dev = [
     "mypy>=1.11",
     "pytest>=8.2",
     "pre-commit>=3.7",
+    "google-api-python-client-stubs>=1.0",
 ]
 
 [build-system]

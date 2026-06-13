@@ -18,6 +18,10 @@ class DocumentAccessDeniedError(PageDoctorError):
     pass
 
 
+class CommentPostingError(PageDoctorError):
+    pass
+
+
 class LlmResponseInvalidError(PageDoctorError):
     pass
 
