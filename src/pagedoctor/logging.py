@@ -37,6 +37,8 @@ class _JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
             "correlation_id": getattr(record, "correlation_id", "-"),
         }
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=False)
 
 
