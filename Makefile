@@ -1,10 +1,13 @@
-.PHONY: install run test test-unit lint format typecheck check
+.PHONY: install run migrate test test-unit lint format typecheck check
 
 install:
 	uv sync
 
 run:
 	uv run python -m pagedoctor
+
+migrate:
+	uv run alembic -c src/pagedoctor/adapters/persistence/alembic.ini upgrade head
 
 test:
 	uv run pytest
