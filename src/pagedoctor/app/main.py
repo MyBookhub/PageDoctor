@@ -20,7 +20,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
     app.state.settings = settings
     get_logger(__name__).info(
-        "application started env=%s port=%s", settings.app_env, settings.app_port
+        "application started env=%s configured_host=%s configured_port=%s",
+        settings.app_env,
+        settings.app_host,
+        settings.app_port,
     )
     yield
 
