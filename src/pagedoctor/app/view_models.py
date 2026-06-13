@@ -8,6 +8,10 @@ from pagedoctor.domain.models.config import BookType, CheckMode, Strictness
 from pagedoctor.domain.models.run import ReviewRun, RunStatus
 
 _TERMINAL_STATUSES = {RunStatus.DONE, RunStatus.INCOMPLETE, RunStatus.FAILED}
+# Resume is for recovery only: a run that stopped (failed or hit its budget). An in-flight
+# PENDING/RUNNING/WRITING run must NOT offer resume, or a PM could launch a duplicate
+# concurrent execution and burn tokens racing the one already running.
+_RESUMABLE_STATUSES = {RunStatus.FAILED, RunStatus.INCOMPLETE}
 
 _STATUS_LABELS = {
     RunStatus.PENDING: "In Warteschlange",
@@ -76,7 +80,7 @@ def run_view(run: ReviewRun) -> RunView:
         status_label=_STATUS_LABELS[run.status],
         tone=_STATUS_TONES[run.status],
         is_terminal=run.status in _TERMINAL_STATUSES,
-        can_resume=run.status is not RunStatus.DONE,
+        can_resume=run.status in _RESUMABLE_STATUSES,
         finding_count=run.finding_count,
         started_at_label=started,
         modes_label=modes,

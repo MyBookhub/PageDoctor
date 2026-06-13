@@ -19,7 +19,7 @@ from pagedoctor.domain.models.config import (
     ReviewConfig,
     Strictness,
 )
-from pagedoctor.domain.models.run import ReviewRun
+from pagedoctor.domain.models.run import ReviewRun, RunStatus
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
 from pagedoctor.logging import get_logger
 
@@ -33,17 +33,21 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 def execute_in_background(orchestrator: ReviewOrchestrator, run: ReviewRun) -> None:
     try:
         orchestrator.execute(run)
-    except Exception:
+    except Exception as error:
         # The orchestrator has already persisted the run as FAILED; the UI surfaces it via
-        # the progress poll. Swallow here so a background failure can't crash the worker.
-        logger.warning("background review run failed", extra={"run_id": str(run.id)})
+        # the progress poll. Swallow so a background failure can't crash the worker. Log the
+        # error type + run id — never exc_info, since a traceback could carry manuscript text
+        # (§9), and the correlation id is already reset by the time this runs.
+        logger.warning("background review run failed for run %s (%s)", run.id, type(error).__name__)
 
 
 def resume_in_background(orchestrator: ReviewOrchestrator, run_id: UUID) -> None:
     try:
         orchestrator.resume(run_id)
-    except Exception:
-        logger.warning("background review resume failed", extra={"run_id": str(run_id)})
+    except Exception as error:
+        logger.warning(
+            "background review resume failed for run %s (%s)", run_id, type(error).__name__
+        )
 
 
 def build_review_config(
@@ -133,5 +137,11 @@ async def resume_run(
     verify_csrf(request, csrf_token)
     run = container.repository.get(run_id)
     orchestrator = container.build_orchestrator(run.token_budget)
+    # Move the run out of its terminal state before rendering, so the returned fragment polls
+    # immediately; without this the poll would read the old FAILED/INCOMPLETE status, render a
+    # terminal fragment with no hx-trigger, and never reflect the resumed run. The checkpoint
+    # (posted_finding_keys) is preserved, so the resume still never double-posts.
+    queued = run.model_copy(update={"status": RunStatus.PENDING, "finished_at": None})
+    container.repository.save(queued)
     background_tasks.add_task(resume_in_background, orchestrator, run_id)
-    return templates.TemplateResponse(request, "progress.html", progress_context(run))
+    return templates.TemplateResponse(request, "progress.html", progress_context(queued))

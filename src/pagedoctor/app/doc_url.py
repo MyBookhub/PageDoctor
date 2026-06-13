@@ -2,7 +2,7 @@ import re
 
 from pagedoctor.app.errors import InvalidReviewForm
 
-_DOC_URL = re.compile(r"/document/d/([a-zA-Z0-9_-]+)")
+_DOC_URL = re.compile(r"docs\.google\.com/document/d/([a-zA-Z0-9_-]+)")
 _BARE_ID = re.compile(r"[a-zA-Z0-9_-]{20,}")
 
 

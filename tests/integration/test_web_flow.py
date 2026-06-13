@@ -89,7 +89,21 @@ def test_runs_list_shows_runs_and_resume_drives_to_done() -> None:
         resp = client.post(f"/runs/{failed.id}/resume", data={"csrf_token": _csrf(client)})
 
         assert resp.status_code == 200
+        # The returned fragment polls again (it is not stuck on the old terminal state)...
+        assert 'hx-trigger="every 2s"' in resp.text
+        # ...and the background resume drives the run to completion.
         assert web.repository.get(failed.id).status is RunStatus.DONE
+
+
+def test_in_flight_run_offers_no_resume_button() -> None:
+    web = build_fake_web()
+    web.repository.save(_run(RunStatus.RUNNING))
+
+    with TestClient(create_app(web.container)) as client:
+        listing = client.get("/runs").text
+
+    # Resume is recovery-only; an in-flight run must not let a PM launch a duplicate.
+    assert "Fortsetzen" not in listing
 
 
 def test_invalid_doc_url_shows_inline_error_not_crash() -> None:

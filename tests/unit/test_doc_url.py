@@ -24,6 +24,11 @@ def test_rejects_garbage() -> None:
         parse_doc_id("not a doc link")
 
 
+def test_rejects_document_path_on_non_google_domain() -> None:
+    with pytest.raises(InvalidReviewForm):
+        parse_doc_id(f"https://evil.example.com/document/d/{DOC_ID}/edit")
+
+
 def test_rejects_empty() -> None:
     with pytest.raises(InvalidReviewForm):
         parse_doc_id("   ")

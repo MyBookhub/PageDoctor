@@ -60,7 +60,13 @@ def create_app(container: Container | None = None) -> FastAPI:
         yield
 
     app = FastAPI(title="PageDoctor", lifespan=lifespan)
-    app.add_middleware(SessionMiddleware, secret_key=settings.app_secret_key.get_secret_value())
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.app_secret_key.get_secret_value(),
+        # Send the session/CSRF cookie only over HTTPS in production; kept off in dev so the
+        # form works over local HTTP.
+        https_only=settings.app_env == "production",
+    )
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
     app.include_router(router)
 
