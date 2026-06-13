@@ -1,8 +1,9 @@
 import os
 import uuid
+from collections.abc import Iterator
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from pagedoctor.adapters.persistence.run_repository import PostgresRunRepository
@@ -18,9 +19,12 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def repository() -> PostgresRunRepository:
+def repository() -> Iterator[PostgresRunRepository]:
     engine = create_engine(load_settings().database_url)
-    return PostgresRunRepository(sessionmaker(bind=engine))
+    yield PostgresRunRepository(sessionmaker(bind=engine))
+    # Leave no residue in the dev database; these tests create throwaway "doc-live" runs.
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM review_runs WHERE doc_id = 'doc-live'"))
 
 
 def _run(status: RunStatus = RunStatus.RUNNING, **overrides: object) -> ReviewRun:
