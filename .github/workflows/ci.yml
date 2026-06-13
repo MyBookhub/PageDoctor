@@ -1,0 +1,65 @@
+name: CI
+
+# Quality gate for PRs (and main after merge): ruff + mypy + pytest.
+# Steps degrade gracefully until the toolchain lands in #2 (Foundation): with no
+# pyproject.toml / src / tests yet, each step skips and the job passes green.
+# The #2 PR is the first to exercise the real checks.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: |
+          if [ -f pyproject.toml ]; then
+            uv sync --all-extras --dev || uv sync
+          else
+            echo "No pyproject.toml yet — skipping install (pre-#2)."
+          fi
+
+      - name: Lint & format check (ruff)
+        run: |
+          if [ -f pyproject.toml ]; then
+            uv run ruff check .
+            uv run ruff format --check .
+          else
+            echo "Skipping ruff (pre-#2)."
+          fi
+
+      - name: Type check (mypy --strict)
+        run: |
+          if [ -d src ]; then
+            uv run mypy src
+          else
+            echo "Skipping mypy (no src/ yet)."
+          fi
+
+      - name: Tests (pytest)
+        run: |
+          if [ -d tests ]; then
+            uv run pytest
+          else
+            echo "Skipping pytest (no tests/ yet)."
+          fi
