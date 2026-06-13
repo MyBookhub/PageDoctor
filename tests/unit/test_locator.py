@@ -6,7 +6,7 @@ from pagedoctor.domain.models.finding import (
     Priority,
     Suggestion,
 )
-from pagedoctor.domain.services.locator import locate_findings, locate_quote
+from pagedoctor.domain.services.locator import attach_locations, locate_quote
 
 DOC = "Der Basilikum ist frisch. Spaeter kommt noch Basilikum dazu."
 #      0         1         2         3         4         5
@@ -64,10 +64,10 @@ def test_quote_outside_chunk_resolves_via_document_fallback() -> None:
     assert DOC[span.start : span.end] == "ist frisch"
 
 
-def test_locate_findings_keeps_unlocatable_with_none() -> None:
+def test_attach_locations_keeps_unlocatable_with_none() -> None:
     chunk = _chunk(DOC, 0)
     findings = ChunkFindings(findings=[_finding("ist frisch"), _finding("Basilikum")])
-    located = locate_findings(chunk, findings, DOC)
+    located = attach_locations(chunk, findings, DOC)
     assert len(located) == 2
     assert located[0].located is not None
     assert located[1].located is None  # ambiguous, surfaced not dropped

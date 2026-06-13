@@ -6,7 +6,7 @@ from pagedoctor.domain.models.finding import Finding
 from pagedoctor.domain.ports.llm_provider import LlmProviderPort
 from pagedoctor.domain.services.chunker import chunk_document
 from pagedoctor.domain.services.consistency import build_consistency_report
-from pagedoctor.domain.services.locator import locate_findings
+from pagedoctor.domain.services.locator import attach_locations
 
 
 class EditingEngine:
@@ -24,6 +24,6 @@ class EditingEngine:
                 # so stop here and report the run as incomplete with partial results.
                 complete = False
                 break
-            findings.extend(locate_findings(chunk, chunk_findings, document.text))
+            findings.extend(attach_locations(chunk, chunk_findings, document.text))
         report = build_consistency_report(document, config)
         return EngineResult(findings=findings, report=report, complete=complete)

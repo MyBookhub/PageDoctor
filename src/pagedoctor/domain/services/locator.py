@@ -21,9 +21,11 @@ def locate_quote(chunk: TextChunk, quote: str, document_text: str) -> LocatedSpa
     return None
 
 
-def locate_findings(
+def attach_locations(
     chunk: TextChunk, chunk_findings: ChunkFindings, document_text: str
 ) -> list[Finding]:
+    # Rebuilds each finding with its located span attached (located=None when the
+    # quote cannot be resolved); the finding is kept, never dropped.
     return [
         item.model_copy(
             update={"located": locate_quote(chunk, item.suggestion.original_text, document_text)}
