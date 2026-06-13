@@ -18,8 +18,7 @@ class IndexSegment(BaseModel):
 
 
 class IndexMap(BaseModel):
-    # Minimal plain-text <-> Docs-API index mapping. Refined in #4 (Google Docs
-    # adapter), where the real documents.get structure defines paragraph/tab indices.
+    # Provisional; the real plain-text to Docs-API index mapping is built in #4.
     model_config = ConfigDict(frozen=True)
 
     plain_text_length: int
@@ -27,8 +26,7 @@ class IndexMap(BaseModel):
 
 
 class SourceDocument(BaseModel):
-    # In-memory only for the duration of a run; never persisted. Indices are not
-    # stable across runs, so the document is re-read fresh on every run.
+    # Never persisted (data protection); re-read each run since offsets are not stable.
     model_config = ConfigDict(frozen=True)
 
     doc_id: str

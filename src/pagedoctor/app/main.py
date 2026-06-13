@@ -14,8 +14,6 @@ class HealthStatus(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Fail fast: a missing required setting raises ConfigError here, before the app
-    # accepts any request. Settings flow through app.state, not a module global.
     settings = load_settings()
     configure_logging(settings.log_level)
     app.state.settings = settings

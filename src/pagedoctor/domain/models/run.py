@@ -26,6 +26,5 @@ class ReviewRun(BaseModel):
     finished_at: datetime | None = None
     finding_count: int = 0
     correlation_id: str
-    # Idempotency checkpoint: stable per-finding keys already written to the doc.
     posted_finding_keys: frozenset[str] = frozenset()
     token_budget: int | None = None

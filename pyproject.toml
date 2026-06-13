@@ -10,10 +10,11 @@ dependencies = [
     "jinja2>=3.1",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    "anthropic>=0.40",
 ]
 
-# Adapter libraries (SQLAlchemy, alembic, anthropic, google-*, psycopg) are added
-# by the issues that introduce their adapter (#3-#6), not here.
+# Remaining adapter libraries (SQLAlchemy, alembic, google-*, psycopg) are added
+# by the issues that introduce their adapter (#4-#6), not here.
 
 [dependency-groups]
 dev = [
@@ -48,9 +49,9 @@ ban-relative-imports = "all"
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-mypy_path = "src"
+mypy_path = "src:tests"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]

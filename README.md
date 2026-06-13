@@ -76,6 +76,8 @@ make lint format typecheck
 
 Copy `.env.example` → `.env`; every key is documented and required keys fail fast at startup.
 
+`make check` is fully offline and free. A few tests make real Anthropic calls (the prompt-cache and German-quality checks) and are skipped unless `PAGEDOCTOR_LIVE_ANTHROPIC=1` — they cost tokens and need a zero-data-retention org.
+
 ## Out of scope for v1
 
 Native tracked-change suggestions and one-click accept/reject, browser automation, span-anchored comments, developmental editing, any creator-facing app, and the Phase-2 list (per-creator style memory, email notifications, stats dashboard, saved profiles, version history, batch mode, audit trail).
