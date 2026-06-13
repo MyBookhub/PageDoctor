@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from pagedoctor.adapters.persistence.models import ReviewRunRow
@@ -22,6 +23,13 @@ class PostgresRunRepository:
             if row is None:
                 raise RunNotFoundError(str(run_id))
             return to_domain(row)
+
+    def list_recent(self, limit: int = 50) -> list[ReviewRun]:
+        with self._session_factory() as session:
+            rows = session.scalars(
+                select(ReviewRunRow).order_by(ReviewRunRow.started_at.desc()).limit(limit)
+            )
+            return [to_domain(row) for row in rows]
 
 
 def to_row(run: ReviewRun) -> ReviewRunRow:
