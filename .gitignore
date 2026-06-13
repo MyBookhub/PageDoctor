@@ -1,0 +1,79 @@
+# ── Secrets & local config ───────────────────────────────────────────────
+# Never commit real secrets. The committed template is .env.example.
+.env
+.env.*
+!.env.example
+# Google service-account / OAuth credentials (Sophie Hoffmann)
+*service-account*.json
+*service_account*.json
+credentials*.json
+client_secret*.json
+*-sa.json
+secrets/
+
+# ── Python ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ── Virtual environments ─────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Tooling caches ───────────────────────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.cache/
+.dmypy.json
+dmypy.json
+
+# ── Local databases / data ───────────────────────────────────────────────
+*.sqlite3
+*.db
+
+# ── Logs ─────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Editors / IDEs ───────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── OS ───────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Claude Code (keep skills/agents/hooks/settings.json; ignore local-only)
+.claude/settings.local.json
+
+# Temporary credential drop — delete after use
+creds.txt
+creds*.txt
