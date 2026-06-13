@@ -18,6 +18,10 @@ class DocumentAccessDeniedError(PageDoctorError):
     pass
 
 
+class RunNotFoundError(PageDoctorError):
+    pass
+
+
 class CommentPostingError(PageDoctorError):
     pass
 

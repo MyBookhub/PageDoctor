@@ -13,10 +13,10 @@ dependencies = [
     "anthropic>=0.40",
     "google-api-python-client>=2.0",
     "google-auth>=2.0",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",
 ]
-
-# Remaining adapter libraries (SQLAlchemy, alembic, psycopg) are added by the
-# issues that introduce their adapter (#5-#6), not here.
 
 [dependency-groups]
 dev = [

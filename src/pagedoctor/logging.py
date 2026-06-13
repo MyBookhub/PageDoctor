@@ -16,6 +16,10 @@ def set_correlation_id(value: str) -> Token[str]:
     return _correlation_id.set(value)
 
 
+def get_correlation_id() -> str:
+    return _correlation_id.get()
+
+
 def reset_correlation_id(token: Token[str]) -> None:
     _correlation_id.reset(token)
 

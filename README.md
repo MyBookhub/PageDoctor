@@ -69,14 +69,15 @@ Output lands in a real author's doc, so the run is **idempotent and resumable**:
 ```bash
 make install      # install deps
 make run          # run the app locally
+make migrate      # apply Alembic migrations (run metadata schema)
 make check        # ruff + mypy --strict + pytest   (CI gate)
 make test         # run the test suite
 make lint format typecheck
 ```
 
-Copy `.env.example` → `.env`; every key is documented and required keys fail fast at startup.
+Copy `.env.example` → `.env`; every key is documented and required keys fail fast at startup. Start the metadata store with `docker compose up -d db`, then `make migrate` to create the `review_runs` table. Schema changes go through Alembic only — never hand-author a revision (use the `new-migration` skill).
 
-`make check` is fully offline and free. A few tests make real Anthropic calls (the prompt-cache and German-quality checks) and are skipped unless `PAGEDOCTOR_LIVE_ANTHROPIC=1` — they cost tokens and need a zero-data-retention org.
+`make check` is fully offline and free. A few tests hit real externals and are skipped by default: the prompt-cache and German-quality checks need `PAGEDOCTOR_LIVE_ANTHROPIC=1` (they cost tokens and need a zero-data-retention org), and the Postgres round-trip tests need `PAGEDOCTOR_LIVE_DB=1` with the `db` container running.
 
 ## Out of scope for v1
 
