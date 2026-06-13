@@ -44,8 +44,8 @@ def test_run_locates_findings_and_builds_report() -> None:
     result = EditingEngine(provider).run(document, _config())
     assert result.complete is True
     assert len(result.findings) == 2
-    assert result.findings[0].located is not None  # located by quote
-    assert result.findings[1].located is None  # unlocatable, surfaced not dropped
+    assert result.findings[0].located is not None
+    assert result.findings[1].located is None
     assert result.report is not None
 
 
@@ -56,10 +56,10 @@ def test_run_stops_and_marks_incomplete_when_budget_trips() -> None:
         budget_after=1,
     )
     result = EditingEngine(provider).run(document, _config())
-    assert result.complete is False  # budget tripped before the last chunk
-    assert len(provider.calls) == 1  # stopped after the first analyze
-    assert len(result.findings) == 1  # partial results retained
-    assert result.report is not None  # consistency is pure, still produced
+    assert result.complete is False
+    assert len(provider.calls) == 1
+    assert len(result.findings) == 1
+    assert result.report is not None
 
 
 def test_run_on_empty_document_is_complete_with_no_findings() -> None:

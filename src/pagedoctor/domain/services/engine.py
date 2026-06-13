@@ -20,8 +20,7 @@ class EditingEngine:
             try:
                 chunk_findings = self._provider.analyze(chunk, config)
             except TokenBudgetExceededError:
-                # Expected control flow, not error suppression: the budget tripped,
-                # so stop here and report the run as incomplete with partial results.
+                # Expected control flow: a budget trip stops the run with partial results.
                 complete = False
                 break
             findings.extend(attach_locations(chunk, chunk_findings, document.text))

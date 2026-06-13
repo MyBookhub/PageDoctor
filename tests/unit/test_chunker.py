@@ -62,7 +62,6 @@ def test_abbreviation_is_not_a_sentence_boundary() -> None:
     text = "Das ist z. B. lang genug. Es folgt ein zweiter Satz hier."
     chunks = chunk_document(_doc(text), _config(), target_chars=35)
     _assert_contiguous_cover(text, chunks)
-    # The abbreviation stays with its sentence; no chunk starts at "B." or "lang".
     assert any("z. B. lang genug" in c.text for c in chunks)
 
 

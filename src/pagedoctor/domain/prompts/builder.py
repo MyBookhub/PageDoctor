@@ -13,9 +13,8 @@ CACHE_MIN_TOKENS = 4096
 
 
 def estimate_tokens(text: str) -> int:
-    # Conservative lower-bound estimate for German prose. The tokenizer averages
-    # ~2 chars/token on this content; 2.5 chars/token is a safe lower bound, so the
-    # estimate stays below the real count. The real floor is the gated live cache test.
+    # 2.5 chars/token: a safe lower bound for German (measured ~2), so this never
+    # over-counts. The real floor is the gated live cache test.
     return len(text) * 2 // 5
 
 

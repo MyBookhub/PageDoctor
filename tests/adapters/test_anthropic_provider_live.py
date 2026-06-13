@@ -15,8 +15,6 @@ from pagedoctor.domain.models.document import TextChunk
 from pagedoctor.domain.models.finding import ChunkFindings
 from pagedoctor.domain.prompts.builder import build_prompt_bundle
 
-# These tests make real Anthropic calls (cost tokens, require a ZDR org). They are
-# skipped unless PAGEDOCTOR_LIVE_ANTHROPIC is set, so make check stays green and free.
 pytestmark = pytest.mark.skipif(
     not os.environ.get("PAGEDOCTOR_LIVE_ANTHROPIC"),
     reason="set PAGEDOCTOR_LIVE_ANTHROPIC=1 to run live Anthropic tests",

@@ -19,8 +19,7 @@ def _domain_modules() -> list[str]:
 
 
 def _top_level_imports(module_name: str) -> set[str]:
-    # find_spec reads the module's location without executing the module body, so a
-    # forbidden import is caught statically even when the offending library is installed.
+    # find_spec avoids executing the module, so a forbidden import is caught statically.
     spec = importlib.util.find_spec(module_name)
     assert spec is not None and spec.origin is not None
     tree = ast.parse(Path(spec.origin).read_text(encoding="utf-8"))

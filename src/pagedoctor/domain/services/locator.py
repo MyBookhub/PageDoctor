@@ -3,9 +3,7 @@ from pagedoctor.domain.models.finding import ChunkFindings, Finding
 
 
 def locate_quote(chunk: TextChunk, quote: str, document_text: str) -> LocatedSpan | None:
-    # Never trust model offsets: match the verbatim quote. Search the originating
-    # chunk first, fall back to the whole document, and resolve only on a unique
-    # match. Ambiguous, garbled, or absent quotes return None (surfaced, not dropped).
+    # Never trust model-reported offsets; resolve only on a unique verbatim match.
     if not quote:
         return None
     local = _unique_span(chunk.text, quote)
@@ -24,8 +22,6 @@ def locate_quote(chunk: TextChunk, quote: str, document_text: str) -> LocatedSpa
 def attach_locations(
     chunk: TextChunk, chunk_findings: ChunkFindings, document_text: str
 ) -> list[Finding]:
-    # Rebuilds each finding with its located span attached (located=None when the
-    # quote cannot be resolved); the finding is kept, never dropped.
     return [
         item.model_copy(
             update={"located": locate_quote(chunk, item.suggestion.original_text, document_text)}

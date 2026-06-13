@@ -98,8 +98,6 @@ def _normalize(word: str) -> str:
 
 
 def _term_variants(frequency: Counter[str]) -> list[TermVariant]:
-    # Same normalized key, different surface forms = the term is rendered
-    # inconsistently (case / hyphen / spacing), e.g. "E-Mail" vs "Email".
     grouped: dict[str, Counter[str]] = defaultdict(Counter)
     for word, count in frequency.items():
         grouped[_normalize(word)][word] += count
@@ -107,8 +105,6 @@ def _term_variants(frequency: Counter[str]) -> list[TermVariant]:
 
 
 def _spelling_variants(frequency: Counter[str]) -> list[TermVariant]:
-    # Distinct normalized keys that are within a small edit distance = likely
-    # misspellings of one word, e.g. "Basilikum" vs "Baslikum".
     representative: dict[str, Counter[str]] = defaultdict(Counter)
     for word, count in frequency.items():
         key = _normalize(word)

@@ -30,7 +30,6 @@ def _config(
 
 
 def test_cached_prefix_clears_the_token_floor() -> None:
-    # Smallest possible prefix (no dictionary, no recipe) must still cache.
     bundle = build_prompt_bundle(
         _config(book_type=BookType.NOVEL_MEMOIR, strictness=Strictness.LIGHT)
     )

@@ -28,8 +28,7 @@ class _CorrelationFilter(logging.Filter):
 
 class _JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        # A fixed set of metadata keys only. Record attributes are never splatted,
-        # so confidential document content cannot ride along in a log line.
+        # Fixed keys only; never splat record attributes, or document content could leak.
         payload: dict[str, Any] = {
             "timestamp": self.formatTime(record),
             "level": record.levelname,

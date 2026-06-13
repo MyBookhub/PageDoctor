@@ -87,7 +87,7 @@ def test_analyze_sends_expected_request_and_returns_parsed() -> None:
     assert kwargs["output_config"] == {"effort": "high"}
     system_block = kwargs["system"][0]
     assert system_block["cache_control"] == {"type": "ephemeral"}
-    assert chunk.text not in system_block["text"]  # chunk text stays out of the cached prefix
+    assert chunk.text not in system_block["text"]
     assert kwargs["messages"][0]["content"] == chunk.text
 
 
@@ -110,8 +110,8 @@ def test_budget_trips_after_usage_accumulates() -> None:
     client.messages.parse.return_value = _response(_findings(), total=100)
     provider = _provider(client, token_budget=100)
 
-    provider.analyze(_chunk(), _config())  # first call consumes 100 tokens
+    provider.analyze(_chunk(), _config())
     with pytest.raises(TokenBudgetExceededError):
-        provider.analyze(_chunk(), _config())  # pre-check now trips
+        provider.analyze(_chunk(), _config())
 
-    assert client.messages.parse.call_count == 1  # no second API call
+    assert client.messages.parse.call_count == 1

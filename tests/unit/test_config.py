@@ -21,7 +21,6 @@ def test_loads_with_required_present(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = load_settings(env_file=None)
     assert settings.anthropic_model == "claude-opus-4-8"
     assert settings.anthropic_effort == "high"
-    # Secrets are masked in repr, never rendered in plain text.
     assert "SENTINEL_APP_KEY" not in repr(settings)
     assert "SENTINEL_ANTHROPIC_KEY" not in repr(settings)
 

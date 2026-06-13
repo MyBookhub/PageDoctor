@@ -14,9 +14,6 @@ _MAX_OUTPUT_TOKENS = 8000
 
 
 class AnthropicLlmProvider:
-    # Implements LlmProviderPort. The only place the Anthropic SDK is used.
-    # Constructed per run with the run's token budget; tracks cumulative usage and
-    # stops the run by raising TokenBudgetExceededError once the budget is reached.
     def __init__(
         self,
         client: anthropic.Anthropic,

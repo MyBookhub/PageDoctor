@@ -7,7 +7,6 @@ from pagedoctor.domain.models.document import SourceDocument, TextChunk
 TARGET_CHARS = 6000
 MAX_DOCUMENT_CHARS = 2_000_000
 
-# German abbreviations whose trailing period must not be read as a sentence end.
 _ABBREVIATIONS = (
     "z. B.",
     "z.B.",
@@ -66,9 +65,6 @@ def _make_chunk(text: str, start: int, end: int, index: int) -> TextChunk:
 
 
 def _split_into_units(text: str, target_chars: int) -> list[tuple[int, int]]:
-    # Contiguous (start, end) slices covering the whole text, split first on
-    # paragraph boundaries, then sentences, then a hard char limit — each unit at
-    # most target_chars so the greedy packer can always honor the budget.
     bounds = [0, *(m.end() for m in _PARAGRAPH_BREAK.finditer(text)), len(text)]
     ordered = sorted({b for b in bounds if 0 <= b <= len(text)})
     units: list[tuple[int, int]] = []
@@ -108,8 +104,6 @@ _TRAILING_TOKEN = re.compile(r"(\S+)$")
 
 
 def _is_sentence_boundary(prefix: str) -> bool:
-    # prefix ends at the sentence punctuation. Not a boundary if it closes a known
-    # abbreviation or a single-letter token (initials, e.g. the "z." in "z. B.").
     if any(prefix.endswith(abbreviation) for abbreviation in _ABBREVIATIONS):
         return False
     token_match = _TRAILING_TOKEN.search(prefix[:-1])

@@ -34,6 +34,4 @@ class Finding(BaseModel):
 
 
 class ChunkFindings(BaseModel):
-    # The LLM parse target: messages.parse returns one .parsed_output object, not a
-    # bare list, so the N findings per chunk are wrapped here.
     findings: list[Finding]

@@ -5,9 +5,6 @@ from pagedoctor.domain.models.finding import ChunkFindings
 
 
 class FakeLlmProvider:
-    # Deterministic in-memory LlmProviderPort for engine/domain tests. Returns
-    # scripted findings per chunk index, records calls, and can simulate a token
-    # budget tripping after a set number of calls.
     def __init__(
         self,
         responses: dict[int, ChunkFindings] | None = None,

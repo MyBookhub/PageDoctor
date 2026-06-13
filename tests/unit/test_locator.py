@@ -9,8 +9,6 @@ from pagedoctor.domain.models.finding import (
 from pagedoctor.domain.services.locator import attach_locations, locate_quote
 
 DOC = "Der Basilikum ist frisch. Spaeter kommt noch Basilikum dazu."
-#      0         1         2         3         4         5
-#      0123456789...
 
 
 def _chunk(text: str, start: int) -> TextChunk:
@@ -70,4 +68,4 @@ def test_attach_locations_keeps_unlocatable_with_none() -> None:
     located = attach_locations(chunk, findings, DOC)
     assert len(located) == 2
     assert located[0].located is not None
-    assert located[1].located is None  # ambiguous, surfaced not dropped
+    assert located[1].located is None
