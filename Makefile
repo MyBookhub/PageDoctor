@@ -4,7 +4,7 @@ install:
 	uv sync
 
 run:
-	uv run uvicorn pagedoctor.app.main:app --reload
+	uv run python -m pagedoctor
 
 test:
 	uv run pytest
