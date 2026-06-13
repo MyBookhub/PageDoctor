@@ -10,8 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PageDoctor is the **AI editing stage** in BookHub's (a German Print-on-Demand publisher) book-production pipeline:
 
-```
-Manuscript ready → PageDoctor (AI editing) → Human proofreading → Print approval
+```mermaid
+flowchart LR
+    A[Manuscript ready] --> B[PageDoctor: AI editing] --> C[Human proofreading] --> D[Print approval]
 ```
 
 An internal **project manager** points the tool at a creator's Google Doc, picks a check mode and settings, and clicks "Review." An LLM proofreads and/or copy-edits the **whole manuscript in German** and writes its findings back into that doc as **comments**, under the identity of a fictional editor, **Sophie Hoffmann**. The creator reviews in Google Docs. PageDoctor does the first pass; a human editor does the final polish.
@@ -34,27 +35,25 @@ Two parts: a **minimal internal PM web app** (one form, one button, one progress
 
 The **domain core is pure**: editing logic, orchestration, and typed models that depend on **nothing external** (no `google`, no `anthropic`, no `fastapi`, no `sqlalchemy` imports). Everything that touches the network, the LLM, Google, the DB, or the clock is an **adapter** behind a **port** (a `Protocol`/ABC defined in the domain). Adapters are **injected** at the boundary; the domain never constructs a client.
 
-```
-                         ┌──────────────────────────────────────────┐
-        HTTP / HTMX  ───▶ │  app/  (FastAPI, Jinja, DI composition)   │  ← drives the domain
-                         └───────────────────┬──────────────────────┘
-                                             │ calls
-                         ┌───────────────────▼──────────────────────┐
-                         │  domain/  (PURE — zero I/O, zero network)  │
-                         │   models · orchestration · prompts ·       │
-                         │   chunking · quote-and-locate · ports      │
-                         └───────────────────┬──────────────────────┘
-                                             │ depends on (interfaces only)
-        ┌────────────────────┬───────────────┴───────────┬───────────────────────┐
-        ▼                    ▼                            ▼                       ▼
-  DocumentSourcePort    LlmProviderPort            OutputPort *headline*    RunRepositoryPort
-  (read doc text +      (German proofreading,      (write findings to       (run metadata only —
-   index map)           structured findings)        the doc)                 NEVER content)
-        │                    │                            │                       │
-  GoogleDocsSource     AnthropicLlmProvider     ┌─ CommentsOutputAdapter ─┐  PostgresRunRepository
-  (Docs API: get)      (Claude, messages.parse)  │  (v1 — Drive comments)  │
-                                                 └─ NativeSuggestionsOutput┘
-                                                    (Option A — LATER, out of scope v1)
+```mermaid
+flowchart TD
+    app["app/ — FastAPI, Jinja, DI composition root"]
+    domain["domain/ — PURE core<br/>models, orchestration, prompts, chunking, quote-and-locate"]
+    app -->|drives| domain
+
+    subgraph ports["domain ports (interfaces)"]
+        dsp["DocumentSourcePort<br/>read doc text + index map"]
+        llp["LlmProviderPort<br/>German proofreading, structured findings"]
+        op["OutputPort — headline swappable seam<br/>write findings to the doc"]
+        rrp["RunRepositoryPort<br/>run metadata only, never content"]
+    end
+    domain -->|depends on interfaces only| ports
+
+    dsp --> gds["GoogleDocsSource<br/>Docs API documents.get"]
+    llp --> alp["AnthropicLlmProvider<br/>Claude, messages.parse"]
+    op --> co["CommentsOutputAdapter<br/>v1 — Drive comments"]
+    op -. "Option A — later, out of v1 scope" .-> nso["NativeSuggestionsOutput"]
+    rrp --> prr["PostgresRunRepository"]
 ```
 
 ### The four ports (defined in `domain/ports/`)
@@ -63,7 +62,7 @@ The **domain core is pure**: editing logic, orchestration, and typed models that
 |---|---|---|
 | `DocumentSourcePort` | Read the document's plain text **and** an index map (so spans can be translated to Docs API ranges later). Re-read fresh on every run — never reuse stale indices (a second pass may run after creator edits). | `GoogleDocsSource` (Docs API `documents.get`) |
 | `LlmProviderPort` | Given a chunk + config, return **typed findings** (validated models, not dicts). | `AnthropicLlmProvider` |
-| `OutputPort` ⭐ | Write findings + consistency report to the doc. **The swappable seam.** | `CommentsOutputAdapter` (Drive `comments.create`) |
+| `OutputPort` (headline seam) | Write findings + consistency report to the doc. **The swappable seam.** | `CommentsOutputAdapter` (Drive `comments.create`) |
 | `RunRepositoryPort` | Persist/read **run metadata only** (doc id, timestamp, mode, settings, status, counts). Never manuscript or finding content. | `PostgresRunRepository` |
 
 The **AI engine, Sophie persona, the two modes, configuration, and workflow are identical regardless of which `OutputPort` adapter is wired in.** Build them once. When Option A lands, it is a new `OutputPort` implementation and a DI change — nothing in `domain/` moves.
@@ -103,7 +102,7 @@ src/pagedoctor/
     ports/                     # Protocol/ABC interfaces — the seams
       document_source.py       # DocumentSourcePort
       llm_provider.py          # LlmProviderPort
-      output.py                # OutputPort  ⭐ swappable
+      output.py                # OutputPort  — headline swappable seam
       run_repository.py        # RunRepositoryPort
     services/                  # Orchestration & pure compute
       review_orchestrator.py   # the top-level use case: read → chunk → analyze → consolidate → write
@@ -283,7 +282,7 @@ class ReviewRun(BaseModel):                    # METADATA ONLY — never holds m
 
 **Provider/model.** Anthropic Claude via the `anthropic` Python SDK. **Default model: `claude-opus-4-8`** for editorial-grade German.
 
-> ⚠️ **ZDR constraint — do not use Claude Fable 5.** PageDoctor's hard data-protection rule (§9) requires zero data retention. **Claude Fable 5 is *not available* under ZDR** (it mandates 30-day retention) — so it is disqualified despite being the most capable model. Use `claude-opus-4-8` (ZDR-compatible) as the default; `claude-sonnet-4-6` is the acceptable cost-down option. Confirm zero-data-retention + no-training is contractually enabled on the Anthropic org before processing real manuscripts.
+> **ZDR constraint — do not use Claude Fable 5.** PageDoctor's hard data-protection rule (§9) requires zero data retention. **Claude Fable 5 is *not available* under ZDR** (it mandates 30-day retention) — so it is disqualified despite being the most capable model. Use `claude-opus-4-8` (ZDR-compatible) as the default; `claude-sonnet-4-6` is the acceptable cost-down option. Confirm zero-data-retention + no-training is contractually enabled on the Anthropic org before processing real manuscripts.
 
 **SDK usage that the domain needs:**
 - **Structured findings, not prose.** Use `client.messages.parse(..., output_format=ChunkFindings)`. `parse()` returns a **single `.parsed_output` object, not a bare list** — so the parse target is the **`ChunkFindings` wrapper** (`{ findings: list[Finding] }`, §6), and you read `result.parsed_output.findings`. No dict parsing, no `Any`. Validation failure → raise `LlmResponseInvalidError`. Note structured outputs **do not enforce field constraints** (`minimum`/`maxLength`/etc.) or recursive schemas — the SDK strips them and validates client-side, so keep `Finding`/`Suggestion` flat and don't rely on schema constraints for correctness.

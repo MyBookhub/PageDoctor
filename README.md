@@ -4,8 +4,9 @@
 
 PageDoctor is the AI editing stage in [BookHub](https://mybookhub.de)'s book-production pipeline. An internal project manager points the tool at a creator's Google Doc; an LLM proofreads and copy-edits the whole manuscript **in German** and writes its findings back into that same doc as **comments**, under the identity of a fictional editor, **Sophie Hoffmann**. The creator reviews natively in Google Docs. PageDoctor does the first pass; a human editor does the final polish.
 
-```
-Manuscript ready → PageDoctor (AI editing) → Human proofreading → Print approval
+```mermaid
+flowchart LR
+    A[Manuscript ready] --> B[PageDoctor: AI editing] --> C[Human proofreading] --> D[Print approval]
 ```
 
 > **Status: planning / pre-implementation.** The governing design is locked in [`CLAUDE.md`](./CLAUDE.md); the full handoff lives in [`docs/`](./docs). Code has not been scaffolded yet.
@@ -27,13 +28,24 @@ A server-side service account **cannot** create native Google Docs suggestions (
 
 Hexagonal (ports & adapters). A **pure domain core** — editing logic, orchestration, and typed models — depends on nothing external. Google Docs, the LLM, the document source, and persistence are **adapters behind ports**. The output adapter is the headline seam.
 
-```
-HTTP / HTMX  →  app/        (FastAPI · Jinja · dependency injection)
-                 ↓ calls
-                domain/     (PURE — models · orchestration · prompts · chunking · quote-and-locate · ports)
-                 ↓ interfaces only
-   DocumentSourcePort · LlmProviderPort · OutputPort ⭐ · RunRepositoryPort
-   GoogleDocsSource   · AnthropicLlm    · CommentsOutput · PostgresRunRepo
+```mermaid
+flowchart TD
+    app["app/ — FastAPI, Jinja, dependency injection"]
+    domain["domain/ — PURE core<br/>models, orchestration, prompts, chunking, quote-and-locate, ports"]
+    app -->|calls| domain
+    domain -->|interfaces only| ports
+
+    subgraph ports["domain ports"]
+        dsp[DocumentSourcePort]
+        llp[LlmProviderPort]
+        op["OutputPort — headline seam"]
+        rrp[RunRepositoryPort]
+    end
+
+    dsp --> gds[GoogleDocsSource]
+    llp --> alp[AnthropicLlmProvider]
+    op --> co[CommentsOutputAdapter]
+    rrp --> prr[PostgresRunRepository]
 ```
 
 See [`CLAUDE.md`](./CLAUDE.md) for the full design, domain model, AI-engine approach, data-protection rules, and document-safety guarantees.
@@ -70,7 +82,6 @@ Native tracked-change suggestions and one-click accept/reject, browser automatio
 
 ## Documentation
 
-- [`CLAUDE.md`](./CLAUDE.md) — the governing design and engineering standards
 - [`docs/PAGEDOCTOR.md`](./docs/PAGEDOCTOR.md) — project outline
 - [`docs/PAGEDOCTOR_CONTEXT.md`](./docs/PAGEDOCTOR_CONTEXT.md) — full handoff & team feedback
 - [`docs/PAGEDOCTOR_FEASIBILITY.md`](./docs/PAGEDOCTOR_FEASIBILITY.md) — the Google Docs API reality and the locked output decision
