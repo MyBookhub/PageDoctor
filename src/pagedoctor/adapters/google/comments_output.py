@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -12,13 +11,10 @@ from pagedoctor.domain.errors import (
     PageDoctorError,
 )
 from pagedoctor.domain.models.consistency import ConsistencyReport, TermVariant
-from pagedoctor.domain.models.finding import Category, Finding
+from pagedoctor.domain.models.finding import Finding
 from pagedoctor.domain.models.run import ReviewRun
-from pagedoctor.domain.services.idempotency import (
-    KEY_LENGTH,
-    consistency_report_key,
-    finding_key,
-)
+from pagedoctor.domain.services.comment_format import MARKER, format_comment_body
+from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
 from pagedoctor.logging import get_logger
 
 if TYPE_CHECKING:
@@ -26,9 +22,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_MARKER = re.compile(rf"\[#([0-9a-f]{{{KEY_LENGTH}}})\]")
 _LIST_FIELDS = "comments(content),nextPageToken"
-_CATEGORY_LABELS = {Category.PROOFREADING: "Korrektorat", Category.EDITING: "Lektorat"}
 
 
 class CommentsOutputAdapter:
@@ -44,7 +38,7 @@ class CommentsOutputAdapter:
             key = finding_key(run.doc_id, finding)
             if key in already:
                 continue
-            self.create_comment(run.doc_id, finding_comment_body(finding, key))
+            self.create_comment(run.doc_id, format_comment_body(finding, key))
             already.add(key)
             posted += 1
 
@@ -74,7 +68,7 @@ class CommentsOutputAdapter:
                 for comment in response.get("comments", []):
                     content = comment.get("content")
                     if content:
-                        keys.update(_MARKER.findall(content))
+                        keys.update(MARKER.findall(content))
                 page_token = response.get("nextPageToken")
                 if not page_token:
                     return keys
@@ -93,20 +87,6 @@ class CommentsOutputAdapter:
         if error.status_code in (403, 404):
             return DocumentAccessDeniedError(doc_id)
         return CommentPostingError(doc_id)
-
-
-def finding_comment_body(finding: Finding, key: str) -> str:
-    suggestion = finding.suggestion
-    label = _CATEGORY_LABELS[finding.category]
-    return "\n".join(
-        (
-            f"[{label} · {finding.priority.value}]",
-            f"Original: „{suggestion.original_text}“",
-            f"Vorschlag: „{suggestion.proposed_change}“",
-            f"Begründung: {suggestion.reason_de}",
-            f"— Sophie Hoffmann  [#{key}]",
-        )
-    )
 
 
 def consistency_comment_body(report: ConsistencyReport, key: str) -> str:
