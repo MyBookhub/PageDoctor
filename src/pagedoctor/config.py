@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # set both when the app is deployed so it is not openly reachable. SSO is a future swap.
     basic_auth_user: str | None = None
     basic_auth_password: SecretStr | None = None
+    # Bearer token gating the add-on findings API. Unset (local dev) leaves it open; set it
+    # before the backend is exposed (e.g. behind a tunnel) so the endpoint requires the token.
+    addon_token: SecretStr | None = None
 
     @field_validator("token_budget", mode="before")
     @classmethod
