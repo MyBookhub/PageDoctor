@@ -2,10 +2,12 @@ import uuid
 
 import pytest
 
+from fakes.comments_source import FakeCommentsSource
 from fakes.document_source import FakeDocumentSource
 from fakes.llm import FakeLlmProvider
 from fakes.output import FakeOutputPort
 from pagedoctor.domain.errors import DocumentAccessDeniedError
+from pagedoctor.domain.models.comment import DocComment
 from pagedoctor.domain.models.config import (
     BookType,
     CheckMode,
@@ -22,6 +24,7 @@ from pagedoctor.domain.models.finding import (
     Suggestion,
 )
 from pagedoctor.domain.models.run import ReviewRun, RunStatus
+from pagedoctor.domain.ports.comments_source import CommentsSourcePort
 from pagedoctor.domain.ports.document_source import DocumentSourcePort
 from pagedoctor.domain.ports.llm_provider import LlmProviderPort
 from pagedoctor.domain.ports.output import OutputPort
@@ -83,3 +86,12 @@ def test_fake_output_port_is_idempotent() -> None:
     output.write_findings(_run(), [_finding()], _empty_report())
 
     assert fake.posted == after_first
+
+
+def test_fake_comments_source_returns_and_denies() -> None:
+    comment = DocComment(content="Hallo", resolved=False)
+    source: CommentsSourcePort = FakeCommentsSource({"doc-1": [comment]})
+
+    assert source.read_comments("doc-1") == [comment]
+    with pytest.raises(DocumentAccessDeniedError):
+        source.read_comments("unknown")

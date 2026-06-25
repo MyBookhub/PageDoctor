@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
+from pagedoctor.app.addon_routes import addon_router
 from pagedoctor.app.container import Container, build_container
 from pagedoctor.app.errors import InvalidReviewForm
 from pagedoctor.app.routes import router, templates
@@ -69,6 +70,7 @@ def create_app(container: Container | None = None) -> FastAPI:
     )
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
     app.include_router(router)
+    app.include_router(addon_router)
 
     app.add_exception_handler(RunNotFoundError, handle_run_not_found)
     app.add_exception_handler(DocumentAccessDeniedError, handle_access_denied)
