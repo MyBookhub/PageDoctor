@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from fakes.clock import FakeClock
+from fakes.comments_source import FakeCommentsSource
 from fakes.document_source import FakeDocumentSource
 from fakes.llm import FakeLlmProvider
 from fakes.output import FakeOutputPort
@@ -15,6 +16,7 @@ from pagedoctor.domain.models.finding import (
     Priority,
     Suggestion,
 )
+from pagedoctor.domain.ports.comments_source import CommentsSourcePort
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
 
@@ -56,10 +58,12 @@ def build_fake_web(
     output: FakeOutputPort | None = None,
     provider: FakeLlmProvider | None = None,
     settings: Settings | None = None,
+    comments_source: CommentsSourcePort | None = None,
 ) -> FakeWeb:
     repository = InMemoryRunRepository()
     shared_output = output or FakeOutputPort()
     shared_provider = provider or _default_provider()
+    shared_comments = comments_source or FakeCommentsSource()
     document = SourceDocument(
         doc_id=DOC_ID, text=DOC_TEXT, index_map=IndexMap(plain_text_length=len(DOC_TEXT))
     )
@@ -74,9 +78,13 @@ def build_fake_web(
             clock=FakeClock(),
         )
 
+    def build_comments_source() -> CommentsSourcePort:
+        return shared_comments
+
     container = Container(
         settings=settings or fake_settings(),
         repository=repository,
         build_orchestrator=build_orchestrator,
+        build_comments_source=build_comments_source,
     )
     return FakeWeb(container, repository, shared_output, shared_provider)
