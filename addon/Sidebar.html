@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --coral: #e8725a;
+        --deep-coral: #c95a44;
+        --warm-white: #faf8f6;
+        --cream: #fff9f5;
+        --black: #1a1a2e;
+        --grey: #9e9eb0;
+        --line: #ece6e1;
+      }
+      body {
+        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        font-size: 13px;
+        color: var(--black);
+        background: var(--warm-white);
+        margin: 0;
+        padding: 12px;
+      }
+      .bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .bar h1 {
+        font-size: 14px;
+        font-weight: 700;
+        margin: 0;
+      }
+      button {
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+        border-radius: 999px;
+        padding: 6px 14px;
+        font-weight: 500;
+        font-size: 12px;
+      }
+      .primary {
+        background: var(--coral);
+        color: #fff;
+      }
+      .primary:hover {
+        background: var(--deep-coral);
+      }
+      .ghost {
+        background: transparent;
+        color: var(--deep-coral);
+        border: 1px solid var(--line);
+      }
+      #status {
+        color: var(--grey);
+        font-size: 12px;
+        margin-bottom: 8px;
+        min-height: 16px;
+      }
+      .card {
+        background: var(--cream);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 8px;
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 1px 8px;
+        border-radius: 999px;
+        color: #fff;
+      }
+      .FEHLER {
+        background: var(--deep-coral);
+      }
+      .EMPFEHLUNG {
+        background: var(--coral);
+      }
+      .HINWEIS {
+        background: var(--grey);
+      }
+      .original {
+        color: var(--grey);
+        text-decoration: line-through;
+        margin: 6px 0 2px;
+      }
+      .proposed {
+        color: var(--black);
+        font-weight: 500;
+      }
+      .reason {
+        color: var(--grey);
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      .actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .done {
+        opacity: 0.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <h1>Sophies Anmerkungen</h1>
+      <button class="ghost" onclick="load()">Aktualisieren</button>
+    </div>
+    <div id="status">Lädt…</div>
+    <div id="list"></div>
+
+    <script>
+      function load() {
+        setStatus('Lädt…');
+        document.getElementById('list').innerHTML = '';
+        google.script.run
+          .withSuccessHandler(render)
+          .withFailureHandler(function (e) {
+            setStatus(e.message);
+          })
+          .getFindings();
+      }
+
+      function setStatus(message) {
+        document.getElementById('status').textContent = message;
+      }
+
+      function render(data) {
+        const findings = (data && data.findings) || [];
+        const list = document.getElementById('list');
+        if (!findings.length) {
+          setStatus('Keine offenen Anmerkungen.');
+          return;
+        }
+        setStatus(findings.length + ' Anmerkung(en)');
+        findings.forEach(function (finding) {
+          list.appendChild(card(finding));
+        });
+      }
+
+      function card(finding) {
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.innerHTML =
+          '<span class="badge"></span>' +
+          '<div class="original"></div>' +
+          '<div class="proposed"></div>' +
+          '<div class="reason"></div>' +
+          '<div class="actions">' +
+          '<button class="primary jump">Springen</button>' +
+          '<button class="ghost apply">Übernehmen</button>' +
+          '</div>';
+
+        const badge = el.querySelector('.badge');
+        badge.textContent = finding.priority;
+        badge.classList.add(finding.priority);
+        el.querySelector('.original').textContent = finding.quote;
+        el.querySelector('.proposed').textContent = finding.proposed_change;
+        el.querySelector('.reason').textContent = finding.reason_de;
+
+        el.querySelector('.jump').onclick = function () {
+          run('jumpToQuote', [finding.quote], finding, el, false);
+        };
+        el.querySelector('.apply').onclick = function () {
+          run('applyFix', [finding.quote, finding.proposed_change], finding, el, true);
+        };
+        return el;
+      }
+
+      function run(fn, args, finding, el, markDone) {
+        google.script.run
+          .withFailureHandler(function (e) {
+            setStatus(e.message);
+          })
+          .withSuccessHandler(function (ok) {
+            if (!ok) {
+              setStatus('Textstelle nicht gefunden: „' + finding.quote + '“');
+            } else if (markDone) {
+              el.classList.add('done');
+            }
+          })
+          [fn].apply(null, args);
+      }
+
+      load();
+    </script>
+  </body>
+</html>
