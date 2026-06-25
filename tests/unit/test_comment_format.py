@@ -1,5 +1,7 @@
+from pagedoctor.domain.models.comment import DocComment
 from pagedoctor.domain.models.finding import Category, Finding, Priority, Suggestion
 from pagedoctor.domain.services.comment_format import (
+    findings_from_comments,
     format_comment_body,
     parse_comment_body,
 )
@@ -66,3 +68,26 @@ def test_parse_ignores_a_plain_human_comment() -> None:
 def test_parse_requires_the_marker() -> None:
     body = format_comment_body(_finding(), "0123456789abcdef").replace("  [#0123456789abcdef]", "")
     assert parse_comment_body(body) is None
+
+
+def test_findings_from_comments_keeps_open_findings_in_order() -> None:
+    first = _finding(original="Erstes Zitat.")
+    second = _finding(original="Zweites Zitat.", category=Category.EDITING)
+    comments = [
+        DocComment(content=format_comment_body(first, "0123456789abcdef"), resolved=False),
+        DocComment(content=format_comment_body(second, "abcdef0123456789"), resolved=False),
+    ]
+    assert findings_from_comments(comments) == [first, second]
+
+
+def test_findings_from_comments_drops_resolved_and_unparseable() -> None:
+    finding = _finding()
+    comments = [
+        DocComment(content=format_comment_body(finding, "0123456789abcdef"), resolved=False),
+        DocComment(
+            content=format_comment_body(_finding(original="Erledigt."), "abcdef0123456789"),
+            resolved=True,
+        ),
+        DocComment(content="Nur ein menschlicher Kommentar.", resolved=False),
+    ]
+    assert findings_from_comments(comments) == [finding]
