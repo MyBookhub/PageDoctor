@@ -23,10 +23,14 @@ function getFindings() {
   const token = props.getProperty('ADDON_TOKEN');
   const docId = DocumentApp.getActiveDocument().getId();
 
+  const headers = { 'ngrok-skip-browser-warning': 'true' };
+  if (token) {
+    headers.Authorization = 'Bearer ' + token;
+  }
   const options = {
     method: 'get',
     muteHttpExceptions: true,
-    headers: token ? { Authorization: 'Bearer ' + token } : {},
+    headers: headers,
   };
   const response = UrlFetchApp.fetch(
     baseUrl.replace(/\/+$/, '') + '/docs/' + encodeURIComponent(docId) + '/findings',
