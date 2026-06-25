@@ -30,19 +30,28 @@ class ReviewOrchestrator:
         self._repository = repository
         self._clock = clock
 
-    def start(
+    def create(
         self, doc_id: str, config: ReviewConfig, token_budget: int | None = None
     ) -> ReviewRun:
+        # Persist a PENDING run and return immediately so the web layer can hand back a
+        # run id and poll; the heavy execute() then runs in the background. started_at is
+        # set here (submission time) so the runs list orders stably even before execution.
         run = ReviewRun(
             id=uuid.uuid4(),
             doc_id=doc_id,
             config=config,
             status=RunStatus.PENDING,
+            started_at=self._clock.now(),
             correlation_id=uuid.uuid4().hex,
             token_budget=token_budget,
         )
         self._repository.save(run)
-        return self.execute(run)
+        return run
+
+    def start(
+        self, doc_id: str, config: ReviewConfig, token_budget: int | None = None
+    ) -> ReviewRun:
+        return self.execute(self.create(doc_id, config, token_budget))
 
     def resume(self, run_id: UUID) -> ReviewRun:
         run = self._repository.get(run_id)

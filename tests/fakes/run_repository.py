@@ -1,7 +1,10 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from pagedoctor.domain.errors import RunNotFoundError
 from pagedoctor.domain.models.run import ReviewRun
+
+_EPOCH = datetime.min.replace(tzinfo=UTC)
 
 
 class InMemoryRunRepository:
@@ -18,3 +21,9 @@ class InMemoryRunRepository:
         if run is None:
             raise RunNotFoundError(str(run_id))
         return run
+
+    def list_recent(self, limit: int = 50) -> list[ReviewRun]:
+        ordered = sorted(
+            self._runs.values(), key=lambda run: run.started_at or _EPOCH, reverse=True
+        )
+        return ordered[:limit]

@@ -1,0 +1,82 @@
+from dataclasses import dataclass
+
+from fakes.clock import FakeClock
+from fakes.document_source import FakeDocumentSource
+from fakes.llm import FakeLlmProvider
+from fakes.output import FakeOutputPort
+from fakes.run_repository import InMemoryRunRepository
+from pagedoctor.app.container import Container
+from pagedoctor.config import Settings
+from pagedoctor.domain.models.document import IndexMap, SourceDocument
+from pagedoctor.domain.models.finding import (
+    Category,
+    ChunkFindings,
+    Finding,
+    Priority,
+    Suggestion,
+)
+from pagedoctor.domain.services.engine import EditingEngine
+from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
+
+DOC_ID = "testdoc0000000000001"
+DOC_TEXT = "Der Hund ist braun. Die Katze schläft tief im Korb."
+
+
+def fake_settings(**overrides: object) -> Settings:
+    values: dict[str, object] = {
+        "app_secret_key": "test-secret-key",
+        "database_url": "postgresql+psycopg://test/test",
+        "anthropic_api_key": "test-anthropic-key",
+        "google_service_account_file": "/tmp/sophie.json",
+    }
+    values.update(overrides)
+    return Settings(_env_file=None, **values)  # type: ignore[arg-type]
+
+
+def _default_provider() -> FakeLlmProvider:
+    finding = Finding(
+        suggestion=Suggestion(
+            original_text="ist braun", proposed_change="ist dunkelbraun", reason_de="Präziser."
+        ),
+        category=Category.PROOFREADING,
+        priority=Priority.EMPFEHLUNG,
+    )
+    return FakeLlmProvider(default=ChunkFindings(findings=[finding]))
+
+
+@dataclass
+class FakeWeb:
+    container: Container
+    repository: InMemoryRunRepository
+    output: FakeOutputPort
+    provider: FakeLlmProvider
+
+
+def build_fake_web(
+    output: FakeOutputPort | None = None,
+    provider: FakeLlmProvider | None = None,
+    settings: Settings | None = None,
+) -> FakeWeb:
+    repository = InMemoryRunRepository()
+    shared_output = output or FakeOutputPort()
+    shared_provider = provider or _default_provider()
+    document = SourceDocument(
+        doc_id=DOC_ID, text=DOC_TEXT, index_map=IndexMap(plain_text_length=len(DOC_TEXT))
+    )
+    source = FakeDocumentSource({DOC_ID: document})
+
+    def build_orchestrator(token_budget: int | None) -> ReviewOrchestrator:
+        return ReviewOrchestrator(
+            source=source,
+            engine=EditingEngine(shared_provider),
+            output=shared_output,
+            repository=repository,
+            clock=FakeClock(),
+        )
+
+    container = Container(
+        settings=settings or fake_settings(),
+        repository=repository,
+        build_orchestrator=build_orchestrator,
+    )
+    return FakeWeb(container, repository, shared_output, shared_provider)

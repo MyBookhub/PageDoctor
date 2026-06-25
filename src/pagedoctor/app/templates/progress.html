@@ -1,0 +1,15 @@
+<div id="progress-{{ run.id }}" class="progress"
+     {% if not run.is_terminal %}hx-get="/runs/{{ run.id }}/progress" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  {% if not run.is_terminal %}<span class="spinner"></span>{% endif %}
+  <div class="progress__body">
+    <span class="badge badge--{{ run.tone }}">{{ run.status_label }}</span>
+    <div class="progress__meta">
+      {% if run.is_terminal %}
+        {{ run.finding_count }} Anmerkung(en) ·
+        <a href="{{ run.doc_url }}" target="_blank" rel="noopener">Dokument öffnen</a>
+      {% else %}
+        Die Prüfung läuft im Hintergrund – diese Anzeige aktualisiert sich automatisch.
+      {% endif %}
+    </div>
+  </div>
+</div>

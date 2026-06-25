@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     )
     google_service_account_file: str
     google_service_account_email: str | None = None
+    # Optional shared-secret gate for the PM web app. When unset (local dev) auth is off;
+    # set both when the app is deployed so it is not openly reachable. SSO is a future swap.
+    basic_auth_user: str | None = None
+    basic_auth_password: SecretStr | None = None
 
     @field_validator("token_budget", mode="before")
     @classmethod
