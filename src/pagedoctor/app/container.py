@@ -58,6 +58,8 @@ def build_container(settings: Settings) -> Container:
             output=CommentsOutputAdapter(build_drive_service(settings)),
             repository=repository,
             clock=clock,
+            comments_source=GoogleCommentsSource(build_drive_service(settings)),
+            comment_resolver=DriveCommentResolver(build_drive_service(settings)),
         )
 
     def build_comments_source() -> CommentsSourcePort:

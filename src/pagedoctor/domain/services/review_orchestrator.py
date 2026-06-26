@@ -1,15 +1,23 @@
 import uuid
+from collections.abc import Callable, Sequence
 from uuid import UUID
 
 from pagedoctor.domain.models.config import ReviewConfig
+from pagedoctor.domain.models.doc_state import DocReviewState
+from pagedoctor.domain.models.document import SourceDocument, TextChunk
 from pagedoctor.domain.models.engine import EngineResult
 from pagedoctor.domain.models.run import ReviewRun, RunStatus
 from pagedoctor.domain.ports.clock import ClockPort
+from pagedoctor.domain.ports.comment_resolver import CommentResolverPort
+from pagedoctor.domain.ports.comments_source import CommentsSourcePort
 from pagedoctor.domain.ports.document_source import DocumentSourcePort
 from pagedoctor.domain.ports.output import OutputPort
 from pagedoctor.domain.ports.run_repository import RunRepositoryPort
+from pagedoctor.domain.services.chunker import chunk_document
+from pagedoctor.domain.services.comment_format import findings_from_comments
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
+from pagedoctor.domain.services.incremental import changed_chunks, chunk_hashes
 from pagedoctor.logging import get_logger, reset_correlation_id, set_correlation_id
 
 logger = get_logger(__name__)
@@ -23,12 +31,16 @@ class ReviewOrchestrator:
         output: OutputPort,
         repository: RunRepositoryPort,
         clock: ClockPort,
+        comments_source: CommentsSourcePort,
+        comment_resolver: CommentResolverPort,
     ) -> None:
         self._source = source
         self._engine = engine
         self._output = output
         self._repository = repository
         self._clock = clock
+        self._comments_source = comments_source
+        self._comment_resolver = comment_resolver
 
     def create(
         self, doc_id: str, config: ReviewConfig, token_budget: int | None = None
@@ -61,6 +73,12 @@ class ReviewOrchestrator:
         return self.execute(run)
 
     def execute(self, run: ReviewRun) -> ReviewRun:
+        return self.run_with_status(run, self.read_analyze_write)
+
+    def execute_incremental(self, run: ReviewRun) -> ReviewRun:
+        return self.run_with_status(run, self.incremental_read_analyze_write)
+
+    def run_with_status(self, run: ReviewRun, work: Callable[[ReviewRun], ReviewRun]) -> ReviewRun:
         # Bind the run's correlation id so every downstream log (engine, source, output)
         # is traceable to this run; reset it after so it never leaks across runs/threads.
         token = set_correlation_id(run.correlation_id)
@@ -75,7 +93,7 @@ class ReviewOrchestrator:
             self._repository.save(running)
             logger.info("review run started", extra={"run_id": str(running.id)})
             try:
-                return self.read_analyze_write(running)
+                return work(running)
             except Exception:
                 # Record the failure durably before it propagates, so a half-written doc is
                 # never represented as a finished run; the boundary maps the raised error.
@@ -97,6 +115,52 @@ class ReviewOrchestrator:
         self._repository.save(writing)
         self._output.write_findings(writing, result.findings, result.report)
         return self.checkpoint_completion(writing, result)
+
+    def incremental_read_analyze_write(self, run: ReviewRun) -> ReviewRun:
+        document = self._source.read(run.doc_id)
+        all_chunks = chunk_document(document, run.config)
+        chunks = self.chunks_to_review(run.doc_id, document, all_chunks)
+        result = self._engine.run_chunks(document, run.config, chunks)
+        writing = run.model_copy(
+            update={"status": RunStatus.WRITING, "finding_count": len(result.findings)}
+        )
+        self._repository.save(writing)
+        self._output.write_findings(writing, result.findings, result.report)
+        self.resolve_obsolete_findings(document)
+        self.save_review_state(document, all_chunks, run.config)
+        return self.checkpoint_completion(writing, result)
+
+    def chunks_to_review(
+        self, doc_id: str, document: SourceDocument, all_chunks: Sequence[TextChunk]
+    ) -> list[TextChunk]:
+        stored = self._repository.get_doc_state(doc_id)
+        if stored is None:
+            return list(all_chunks)
+        if stored.revision_id is not None and stored.revision_id == document.revision_id:
+            return []
+        return changed_chunks(stored.chunk_hashes, all_chunks)
+
+    def resolve_obsolete_findings(self, document: SourceDocument) -> None:
+        # A finding whose quoted text no longer appears in the doc is obsolete; resolve its
+        # comment so it stops surfacing in the sidebar.
+        for open_finding in findings_from_comments(
+            self._comments_source.read_comments(document.doc_id)
+        ):
+            if open_finding.finding.suggestion.original_text not in document.text:
+                self._comment_resolver.resolve_comment(document.doc_id, open_finding.comment_id)
+
+    def save_review_state(
+        self, document: SourceDocument, all_chunks: Sequence[TextChunk], config: ReviewConfig
+    ) -> None:
+        self._repository.save_doc_state(
+            DocReviewState(
+                doc_id=document.doc_id,
+                revision_id=document.revision_id,
+                chunk_hashes=chunk_hashes(all_chunks),
+                config=config,
+                updated_at=self._clock.now(),
+            )
+        )
 
     def checkpoint_completion(self, run: ReviewRun, result: EngineResult) -> ReviewRun:
         posted = set(run.posted_finding_keys)

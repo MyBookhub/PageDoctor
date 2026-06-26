@@ -3,6 +3,7 @@ from collections.abc import Sequence
 import pytest
 
 from fakes.clock import FakeClock
+from fakes.comments_source import FakeCommentsSource
 from fakes.document_source import FakeDocumentSource
 from fakes.llm import FakeLlmProvider
 from fakes.output import FakeOutputPort
@@ -72,6 +73,8 @@ def _orchestrator(
         output=output,
         repository=repository,
         clock=FakeClock(),
+        comments_source=FakeCommentsSource({DOC_ID: []}),
+        comment_resolver=FakeOutputPort(),
     )
 
 

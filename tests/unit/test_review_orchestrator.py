@@ -4,11 +4,13 @@ from collections.abc import Sequence
 import pytest
 
 from fakes.clock import FakeClock
+from fakes.comments_source import FakeCommentsSource
 from fakes.document_source import FakeDocumentSource
 from fakes.llm import FakeLlmProvider
 from fakes.output import FakeOutputPort
 from fakes.run_repository import InMemoryRunRepository
 from pagedoctor.domain.errors import CommentPostingError, RunNotFoundError
+from pagedoctor.domain.models.comment import DocComment
 from pagedoctor.domain.models.config import BookType, CheckMode, ReviewConfig, Strictness
 from pagedoctor.domain.models.consistency import ConsistencyReport
 from pagedoctor.domain.models.document import IndexMap, SourceDocument
@@ -20,6 +22,7 @@ from pagedoctor.domain.models.finding import (
     Suggestion,
 )
 from pagedoctor.domain.models.run import ReviewRun, RunStatus
+from pagedoctor.domain.services.comment_format import format_comment_body
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
@@ -37,8 +40,13 @@ def _config() -> ReviewConfig:
     )
 
 
-def _document(text: str = DOC_TEXT) -> SourceDocument:
-    return SourceDocument(doc_id=DOC_ID, text=text, index_map=IndexMap(plain_text_length=len(text)))
+def _document(text: str = DOC_TEXT, revision_id: str | None = None) -> SourceDocument:
+    return SourceDocument(
+        doc_id=DOC_ID,
+        text=text,
+        index_map=IndexMap(plain_text_length=len(text)),
+        revision_id=revision_id,
+    )
 
 
 def _finding(quote: str) -> Finding:
@@ -54,6 +62,7 @@ def _orchestrator(
     output: FakeOutputPort,
     provider: FakeLlmProvider,
     document: SourceDocument | None = None,
+    comments_source: FakeCommentsSource | None = None,
 ) -> ReviewOrchestrator:
     source = FakeDocumentSource({DOC_ID: document or _document()})
     return ReviewOrchestrator(
@@ -62,6 +71,8 @@ def _orchestrator(
         output=output,
         repository=repository,
         clock=FakeClock(),
+        comments_source=comments_source or FakeCommentsSource({DOC_ID: []}),
+        comment_resolver=output,
     )
 
 
@@ -187,6 +198,74 @@ def test_resume_unknown_run_raises() -> None:
         orchestrator.resume(uuid.uuid4())
 
 
+def test_first_incremental_reviews_all_and_saves_state() -> None:
+    repository = InMemoryRunRepository()
+    output = FakeOutputPort()
+    provider = _provider("ist braun")
+    orchestrator = _orchestrator(repository, output, provider, document=_document(revision_id="r1"))
+
+    run = orchestrator.execute_incremental(orchestrator.create(DOC_ID, _config()))
+
+    assert run.status is RunStatus.DONE
+    assert len(provider.calls) >= 1
+    state = repository.get_doc_state(DOC_ID)
+    assert state is not None
+    assert state.revision_id == "r1"
+
+
+def test_incremental_skips_llm_when_revision_is_unchanged() -> None:
+    repository = InMemoryRunRepository()
+    first = _orchestrator(
+        repository, FakeOutputPort(), _provider("ist braun"), document=_document(revision_id="r1")
+    )
+    first.execute_incremental(first.create(DOC_ID, _config()))
+
+    provider = _provider("ist braun")
+    again = _orchestrator(
+        repository, FakeOutputPort(), provider, document=_document(revision_id="r1")
+    )
+    run = again.execute_incremental(again.create(DOC_ID, _config()))
+
+    assert run.status is RunStatus.DONE
+    assert provider.calls == []
+
+
+def test_incremental_reviews_again_when_text_changed() -> None:
+    repository = InMemoryRunRepository()
+    first = _orchestrator(
+        repository, FakeOutputPort(), _provider("ist braun"), document=_document(revision_id="r1")
+    )
+    first.execute_incremental(first.create(DOC_ID, _config()))
+
+    changed = _document("Der Hund ist grün. Die Katze schläft tief.", revision_id="r2")
+    provider = _provider("ist grün")
+    again = _orchestrator(repository, FakeOutputPort(), provider, document=changed)
+    again.execute_incremental(again.create(DOC_ID, _config()))
+
+    assert len(provider.calls) >= 1
+
+
+def test_incremental_resolves_findings_whose_text_is_gone() -> None:
+    repository = InMemoryRunRepository()
+    output = FakeOutputPort()
+    gone = _finding("ein Satz der nicht mehr existiert")
+    comment = DocComment(
+        id="cX", content=format_comment_body(gone, finding_key(DOC_ID, gone)), resolved=False
+    )
+    comments = FakeCommentsSource({DOC_ID: [comment]})
+    orchestrator = _orchestrator(
+        repository,
+        output,
+        _provider("ist braun"),
+        document=_document(revision_id="r1"),
+        comments_source=comments,
+    )
+
+    orchestrator.execute_incremental(orchestrator.create(DOC_ID, _config()))
+
+    assert "cX" in output.resolved
+
+
 def test_run_binds_correlation_id_for_downstream_logs_then_resets() -> None:
     seen: list[str] = []
 
@@ -206,6 +285,8 @@ def test_run_binds_correlation_id_for_downstream_logs_then_resets() -> None:
         output=CapturingOutput(),
         repository=repository,
         clock=FakeClock(),
+        comments_source=FakeCommentsSource({DOC_ID: []}),
+        comment_resolver=FakeOutputPort(),
     )
 
     run = orchestrator.start(DOC_ID, _config())

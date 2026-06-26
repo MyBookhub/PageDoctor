@@ -77,6 +77,8 @@ def build_fake_web(
             output=shared_output,
             repository=repository,
             clock=FakeClock(),
+            comments_source=shared_comments,
+            comment_resolver=shared_output,
         )
 
     def build_comments_source() -> CommentsSourcePort:
