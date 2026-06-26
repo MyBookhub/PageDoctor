@@ -295,7 +295,20 @@
           setStatus('Keine offenen Anmerkungen.');
           return;
         }
-        setStatus(findings.length + ' Anmerkung(en)');
+        const counts = { FEHLER: 0, EMPFEHLUNG: 0, HINWEIS: 0 };
+        findings.forEach(function (finding) {
+          counts[finding.priority] = (counts[finding.priority] || 0) + 1;
+        });
+        setStatus(
+          findings.length +
+            ' offen · ' +
+            counts.FEHLER +
+            ' Fehler · ' +
+            counts.EMPFEHLUNG +
+            ' Empfehlung · ' +
+            counts.HINWEIS +
+            ' Hinweis'
+        );
         findings.forEach(function (finding) {
           list.appendChild(card(finding));
         });
