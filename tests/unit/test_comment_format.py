@@ -74,20 +74,27 @@ def test_findings_from_comments_keeps_open_findings_in_order() -> None:
     first = _finding(original="Erstes Zitat.")
     second = _finding(original="Zweites Zitat.", category=Category.EDITING)
     comments = [
-        DocComment(content=format_comment_body(first, "0123456789abcdef"), resolved=False),
-        DocComment(content=format_comment_body(second, "abcdef0123456789"), resolved=False),
+        DocComment(id="c1", content=format_comment_body(first, "0123456789abcdef"), resolved=False),
+        DocComment(
+            id="c2", content=format_comment_body(second, "abcdef0123456789"), resolved=False
+        ),
     ]
-    assert findings_from_comments(comments) == [first, second]
+    results = findings_from_comments(comments)
+    assert [(r.comment_id, r.finding) for r in results] == [("c1", first), ("c2", second)]
 
 
 def test_findings_from_comments_drops_resolved_and_unparseable() -> None:
     finding = _finding()
     comments = [
-        DocComment(content=format_comment_body(finding, "0123456789abcdef"), resolved=False),
         DocComment(
+            id="c1", content=format_comment_body(finding, "0123456789abcdef"), resolved=False
+        ),
+        DocComment(
+            id="c2",
             content=format_comment_body(_finding(original="Erledigt."), "abcdef0123456789"),
             resolved=True,
         ),
-        DocComment(content="Nur ein menschlicher Kommentar.", resolved=False),
+        DocComment(id="c3", content="Nur ein menschlicher Kommentar.", resolved=False),
     ]
-    assert findings_from_comments(comments) == [finding]
+    results = findings_from_comments(comments)
+    assert [(r.comment_id, r.finding) for r in results] == [("c1", finding)]

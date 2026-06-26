@@ -26,9 +26,11 @@ def _finding(
     )
 
 
-def _comment(finding: Finding, resolved: bool = False) -> DocComment:
+def _comment(finding: Finding, resolved: bool = False, comment_id: str = "c1") -> DocComment:
     return DocComment(
-        content=format_comment_body(finding, finding_key(DOC_ID, finding)), resolved=resolved
+        id=comment_id,
+        content=format_comment_body(finding, finding_key(DOC_ID, finding)),
+        resolved=resolved,
     )
 
 
@@ -41,7 +43,12 @@ def _client(source: FakeCommentsSource, *, token: str | None = None) -> TestClie
 def test_returns_open_findings_as_json() -> None:
     finding = _finding()
     source = FakeCommentsSource(
-        {DOC_ID: [_comment(finding), _comment(_finding("Erledigt."), resolved=True)]}
+        {
+            DOC_ID: [
+                _comment(finding, comment_id="c1"),
+                _comment(_finding("Erledigt."), resolved=True, comment_id="c2"),
+            ]
+        }
     )
 
     with _client(source) as client:
@@ -53,6 +60,7 @@ def test_returns_open_findings_as_json() -> None:
     assert body["findings"] == [
         {
             "key": finding_key(DOC_ID, finding),
+            "comment_id": "c1",
             "quote": "Der Hund schläft.",
             "proposed_change": "Der Hund schläft tief.",
             "reason_de": "Präzisere Formulierung.",

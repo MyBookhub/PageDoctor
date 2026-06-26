@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from pagedoctor.app.addon_auth import require_addon_token
 from pagedoctor.app.container import get_container
 from pagedoctor.domain.errors import DocumentAccessDeniedError
-from pagedoctor.domain.models.finding import Category, Finding, Priority
+from pagedoctor.domain.models.comment import OpenFinding
+from pagedoctor.domain.models.finding import Category, Priority
 from pagedoctor.domain.services.comment_format import findings_from_comments
 from pagedoctor.domain.services.idempotency import finding_key
 from pagedoctor.logging import get_logger
@@ -16,6 +17,7 @@ addon_router = APIRouter(prefix="/docs", dependencies=[Depends(require_addon_tok
 
 class AddonFinding(BaseModel):
     key: str
+    comment_id: str
     quote: str
     proposed_change: str
     reason_de: str
@@ -28,10 +30,12 @@ class DocFindings(BaseModel):
     findings: list[AddonFinding]
 
 
-def to_addon_finding(doc_id: str, finding: Finding) -> AddonFinding:
+def to_addon_finding(doc_id: str, open_finding: OpenFinding) -> AddonFinding:
+    finding = open_finding.finding
     suggestion = finding.suggestion
     return AddonFinding(
         key=finding_key(doc_id, finding),
+        comment_id=open_finding.comment_id,
         quote=suggestion.original_text,
         proposed_change=suggestion.proposed_change,
         reason_de=suggestion.reason_de,
@@ -53,6 +57,4 @@ def get_doc_findings(doc_id: str, request: Request) -> DocFindings:
         ) from error
     findings = findings_from_comments(comments)
     logger.info("served add-on findings", extra={"finding_count": len(findings)})
-    return DocFindings(
-        doc_id=doc_id, findings=[to_addon_finding(doc_id, finding) for finding in findings]
-    )
+    return DocFindings(doc_id=doc_id, findings=[to_addon_finding(doc_id, of) for of in findings])

@@ -89,7 +89,7 @@ def test_fake_output_port_is_idempotent() -> None:
 
 
 def test_fake_comments_source_returns_and_denies() -> None:
-    comment = DocComment(content="Hallo", resolved=False)
+    comment = DocComment(id="c1", content="Hallo", resolved=False)
     source: CommentsSourcePort = FakeCommentsSource({"doc-1": [comment]})
 
     assert source.read_comments("doc-1") == [comment]

@@ -31,13 +31,13 @@ def _http_error(status: int) -> HttpError:
     return HttpError(httplib2.Response({"status": str(status)}), b"{}")
 
 
-def test_reads_content_and_resolved_flag() -> None:
+def test_reads_id_content_and_resolved_flag() -> None:
     client = _service(
         [
             {
                 "comments": [
-                    {"content": "offen", "resolved": False},
-                    {"content": "erledigt", "resolved": True},
+                    {"id": "c1", "content": "offen", "resolved": False},
+                    {"id": "c2", "content": "erledigt", "resolved": True},
                 ]
             }
         ]
@@ -46,34 +46,41 @@ def test_reads_content_and_resolved_flag() -> None:
     comments = _source(client).read_comments(DOC_ID)
 
     assert comments == [
-        DocComment(content="offen", resolved=False),
-        DocComment(content="erledigt", resolved=True),
+        DocComment(id="c1", content="offen", resolved=False),
+        DocComment(id="c2", content="erledigt", resolved=True),
     ]
 
 
-def test_requests_content_and_resolved_fields() -> None:
+def test_requests_id_content_and_resolved_fields() -> None:
     client = _service([{"comments": []}])
 
     _source(client).read_comments(DOC_ID)
 
     kwargs = client.comments.return_value.list.call_args.kwargs
     assert kwargs["fileId"] == DOC_ID
+    assert "id" in kwargs["fields"]
     assert "resolved" in kwargs["fields"]
 
 
 def test_missing_resolved_defaults_to_false() -> None:
-    client = _service([{"comments": [{"content": "ohne Flag"}]}])
+    client = _service([{"comments": [{"id": "c1", "content": "ohne Flag"}]}])
 
     comments = _source(client).read_comments(DOC_ID)
 
-    assert comments == [DocComment(content="ohne Flag", resolved=False)]
+    assert comments == [DocComment(id="c1", content="ohne Flag", resolved=False)]
+
+
+def test_comment_without_id_is_skipped() -> None:
+    client = _service([{"comments": [{"content": "kein id"}]}])
+
+    assert _source(client).read_comments(DOC_ID) == []
 
 
 def test_paginates_until_exhausted() -> None:
     client = _service(
         [
-            {"comments": [{"content": "a", "resolved": False}], "nextPageToken": "p2"},
-            {"comments": [{"content": "b", "resolved": False}]},
+            {"comments": [{"id": "a", "content": "a", "resolved": False}], "nextPageToken": "p2"},
+            {"comments": [{"id": "b", "content": "b", "resolved": False}]},
         ]
     )
 

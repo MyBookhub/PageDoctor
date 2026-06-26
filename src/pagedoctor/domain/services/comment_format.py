@@ -1,7 +1,7 @@
 import re
 from collections.abc import Sequence
 
-from pagedoctor.domain.models.comment import DocComment
+from pagedoctor.domain.models.comment import DocComment, OpenFinding
 from pagedoctor.domain.models.finding import Category, Finding, Priority, Suggestion
 from pagedoctor.domain.services.idempotency import KEY_LENGTH
 
@@ -51,12 +51,12 @@ def parse_comment_body(content: str) -> Finding | None:
     )
 
 
-def findings_from_comments(comments: Sequence[DocComment]) -> list[Finding]:
-    findings: list[Finding] = []
+def findings_from_comments(comments: Sequence[DocComment]) -> list[OpenFinding]:
+    results: list[OpenFinding] = []
     for comment in comments:
         if comment.resolved:
             continue
         finding = parse_comment_body(comment.content)
         if finding is not None:
-            findings.append(finding)
-    return findings
+            results.append(OpenFinding(comment_id=comment.id, finding=finding))
+    return results
