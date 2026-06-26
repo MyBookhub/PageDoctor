@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 from pagedoctor.app.addon_auth import require_addon_token
 from pagedoctor.app.container import get_container
-from pagedoctor.app.routes import execute_in_background
 from pagedoctor.domain.errors import DocumentAccessDeniedError, RunNotFoundError
 from pagedoctor.domain.models.comment import OpenFinding
 from pagedoctor.domain.models.config import (
@@ -16,9 +15,10 @@ from pagedoctor.domain.models.config import (
     Strictness,
 )
 from pagedoctor.domain.models.finding import Category, Priority
-from pagedoctor.domain.models.run import RunStatus
+from pagedoctor.domain.models.run import ReviewRun, RunStatus
 from pagedoctor.domain.services.comment_format import findings_from_comments
 from pagedoctor.domain.services.idempotency import finding_key
+from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
 from pagedoctor.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,6 +26,15 @@ logger = get_logger(__name__)
 addon_router = APIRouter(prefix="/docs", dependencies=[Depends(require_addon_token)])
 
 _TERMINAL = {RunStatus.DONE, RunStatus.INCOMPLETE, RunStatus.FAILED}
+
+
+def review_in_background(orchestrator: ReviewOrchestrator, run: ReviewRun) -> None:
+    # Incremental: the first pass reviews the whole doc and records its state; later passes
+    # re-review only changed chunks. The orchestrator persists any failure as FAILED.
+    try:
+        orchestrator.execute_incremental(run)
+    except Exception as error:
+        logger.warning("add-on review failed for run %s (%s)", run.id, type(error).__name__)
 
 
 class AddonFinding(BaseModel):
@@ -64,6 +73,11 @@ class RunProgress(BaseModel):
 
 class ResolveResponse(BaseModel):
     resolved: bool
+
+
+class DocState(BaseModel):
+    reviewed: bool
+    changed: bool
 
 
 def to_addon_finding(doc_id: str, open_finding: OpenFinding) -> AddonFinding:
@@ -119,7 +133,7 @@ def trigger_review(
     budget = container.settings.token_budget
     orchestrator = container.build_orchestrator(budget)
     run = orchestrator.create(doc_id, to_review_config(body), budget)
-    background_tasks.add_task(execute_in_background, orchestrator, run)
+    background_tasks.add_task(review_in_background, orchestrator, run)
     return ReviewStarted(run_id=str(run.id), status=run.status)
 
 
@@ -150,3 +164,17 @@ def resolve_finding(doc_id: str, comment_id: str, request: Request) -> ResolveRe
             detail="Dokument nicht gefunden oder nicht für Sophie freigegeben.",
         ) from error
     return ResolveResponse(resolved=True)
+
+
+@addon_router.get("/{doc_id}/state")
+def doc_state(doc_id: str, request: Request) -> DocState:
+    container = get_container(request)
+    stored = container.repository.get_doc_state(doc_id)
+    if stored is None:
+        return DocState(reviewed=False, changed=False)
+    try:
+        current = container.build_document_source().read(doc_id)
+    except DocumentAccessDeniedError:
+        return DocState(reviewed=True, changed=False)
+    changed = current.revision_id != stored.revision_id
+    return DocState(reviewed=True, changed=changed)

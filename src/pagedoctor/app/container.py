@@ -17,6 +17,7 @@ from pagedoctor.adapters.persistence.run_repository import PostgresRunRepository
 from pagedoctor.config import Settings
 from pagedoctor.domain.ports.comment_resolver import CommentResolverPort
 from pagedoctor.domain.ports.comments_source import CommentsSourcePort
+from pagedoctor.domain.ports.document_source import DocumentSourcePort
 from pagedoctor.domain.ports.run_repository import RunRepositoryPort
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
@@ -29,6 +30,7 @@ class Container:
     build_orchestrator: Callable[[int | None], ReviewOrchestrator]
     build_comments_source: Callable[[], CommentsSourcePort]
     build_comment_resolver: Callable[[], CommentResolverPort]
+    build_document_source: Callable[[], DocumentSourcePort]
 
 
 def get_container(request: Request) -> Container:
@@ -68,10 +70,14 @@ def build_container(settings: Settings) -> Container:
     def build_comment_resolver() -> CommentResolverPort:
         return DriveCommentResolver(build_drive_service(settings))
 
+    def build_document_source() -> DocumentSourcePort:
+        return GoogleDocsSource(build_docs_service(settings))
+
     return Container(
         settings=settings,
         repository=repository,
         build_orchestrator=build_orchestrator,
         build_comments_source=build_comments_source,
         build_comment_resolver=build_comment_resolver,
+        build_document_source=build_document_source,
     )

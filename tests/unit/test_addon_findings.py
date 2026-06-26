@@ -129,6 +129,28 @@ def test_trigger_review_rejects_empty_modes() -> None:
     assert response.status_code == 422
 
 
+def test_state_is_unreviewed_before_any_review() -> None:
+    web = build_fake_web()
+
+    with TestClient(create_app(web.container)) as client:
+        response = client.get(f"/docs/{WEB_DOC_ID}/state")
+
+    assert response.status_code == 200
+    assert response.json() == {"reviewed": False, "changed": False}
+
+
+def test_state_reports_reviewed_after_a_review() -> None:
+    web = build_fake_web()
+    body = {"modes": ["proofreading"], "book_type": "cookbook", "strictness": "standard"}
+
+    with TestClient(create_app(web.container)) as client:
+        client.post(f"/docs/{WEB_DOC_ID}/review", json=body)
+        response = client.get(f"/docs/{WEB_DOC_ID}/state")
+
+    assert response.status_code == 200
+    assert response.json()["reviewed"] is True
+
+
 def test_status_for_unknown_run_returns_404() -> None:
     web = build_fake_web()
 
