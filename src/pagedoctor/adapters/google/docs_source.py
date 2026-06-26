@@ -40,6 +40,7 @@ class GoogleDocsSource:
             doc_id=doc_id,
             text=text,
             index_map=IndexMap(plain_text_length=len(text), segments=tuple(segments)),
+            revision_id=document.get("revisionId"),
         )
 
 

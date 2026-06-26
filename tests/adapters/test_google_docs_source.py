@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 def _document() -> dict[str, Any]:
     return {
+        "revisionId": "rev-42",
         "body": {
             "content": [
                 {
@@ -62,7 +63,7 @@ def _document() -> dict[str, Any]:
                     },
                 },
             ]
-        }
+        },
     }
 
 
@@ -102,6 +103,11 @@ def test_read_builds_index_map_mapping_runs_to_docs_indices() -> None:
         (16, 19, 17),
         (19, 26, 24),
     ]
+
+
+def test_read_captures_the_revision_id() -> None:
+    client = _service(_document())
+    assert _source(client).read("doc-1").revision_id == "rev-42"
 
 
 def test_read_requests_the_target_doc() -> None:

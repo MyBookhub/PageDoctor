@@ -32,6 +32,7 @@ class SourceDocument(BaseModel):
     doc_id: str
     text: str
     index_map: IndexMap
+    revision_id: str | None = None
 
 
 class TextChunk(BaseModel):
