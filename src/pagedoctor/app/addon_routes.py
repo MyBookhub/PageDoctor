@@ -30,7 +30,9 @@ _TERMINAL = {RunStatus.DONE, RunStatus.INCOMPLETE, RunStatus.FAILED}
 
 def review_in_background(orchestrator: ReviewOrchestrator, run: ReviewRun) -> None:
     # Incremental: the first pass reviews the whole doc and records its state; later passes
-    # re-review only changed chunks. The orchestrator persists any failure as FAILED.
+    # re-review only changed chunks. The orchestrator persists any failure as FAILED before
+    # raising, so we swallow here to not crash the worker; log the error class only — never
+    # exc_info, since a traceback could carry manuscript text (§9).
     try:
         orchestrator.execute_incremental(run)
     except Exception as error:
@@ -174,7 +176,10 @@ def doc_state(doc_id: str, request: Request) -> DocState:
         return DocState(reviewed=False, changed=False)
     try:
         current = container.build_document_source().read(doc_id)
-    except DocumentAccessDeniedError:
-        return DocState(reviewed=True, changed=False)
+    except DocumentAccessDeniedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dokument nicht gefunden oder nicht für Sophie freigegeben.",
+        ) from error
     changed = current.revision_id != stored.revision_id
     return DocState(reviewed=True, changed=changed)

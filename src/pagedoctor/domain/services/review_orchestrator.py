@@ -126,8 +126,10 @@ class ReviewOrchestrator:
         )
         self._repository.save(writing)
         self._output.write_findings(writing, result.findings, result.report)
-        self.resolve_obsolete_findings(document)
+        # Persist the new fingerprint before the best-effort cleanup, so a failure resolving
+        # obsolete comments can't cost the next pass a full re-review.
         self.save_review_state(document, all_chunks, run.config)
+        self.resolve_obsolete_findings(document)
         return self.checkpoint_completion(writing, result)
 
     def chunks_to_review(
