@@ -5,7 +5,7 @@ from pagedoctor.domain.models.config import (
     ReviewConfig,
     Strictness,
 )
-from pagedoctor.domain.models.document import IndexMap, SourceDocument
+from pagedoctor.domain.models.document import IndexMap, SourceDocument, TextChunk
 from pagedoctor.domain.models.finding import (
     Category,
     ChunkFindings,
@@ -66,3 +66,24 @@ def test_run_on_empty_document_is_complete_with_no_findings() -> None:
     result = EditingEngine(FakeLlmProvider()).run(_doc(""), _config())
     assert result.complete is True
     assert result.findings == []
+
+
+def test_run_chunks_reviews_only_given_chunks_but_full_consistency() -> None:
+    document = _doc("Der Hund ist braun. Die Katze schlaeft.")
+    provider = FakeLlmProvider(responses={5: ChunkFindings(findings=[_finding("ist braun")])})
+    chunk = TextChunk(index=5, text="Der Hund ist braun.", start_offset=0, end_offset=19)
+
+    result = EditingEngine(provider).run_chunks(document, _config(), [chunk])
+
+    assert [c.index for c in provider.calls] == [5]
+    assert len(result.findings) == 1
+    assert result.findings[0].located is not None
+    assert result.report is not None
+
+
+def test_run_chunks_on_no_chunks_makes_no_llm_calls() -> None:
+    provider = FakeLlmProvider()
+    result = EditingEngine(provider).run_chunks(_doc("Etwas Text."), _config(), [])
+    assert provider.calls == []
+    assert result.findings == []
+    assert result.complete is True

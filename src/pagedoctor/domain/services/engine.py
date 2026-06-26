@@ -1,6 +1,8 @@
+from collections.abc import Sequence
+
 from pagedoctor.domain.errors import TokenBudgetExceededError
 from pagedoctor.domain.models.config import ReviewConfig
-from pagedoctor.domain.models.document import SourceDocument
+from pagedoctor.domain.models.document import SourceDocument, TextChunk
 from pagedoctor.domain.models.engine import EngineResult
 from pagedoctor.domain.models.finding import Finding
 from pagedoctor.domain.ports.llm_provider import LlmProviderPort
@@ -14,9 +16,14 @@ class EditingEngine:
         self._provider = provider
 
     def run(self, document: SourceDocument, config: ReviewConfig) -> EngineResult:
+        return self.run_chunks(document, config, chunk_document(document, config))
+
+    def run_chunks(
+        self, document: SourceDocument, config: ReviewConfig, chunks: Sequence[TextChunk]
+    ) -> EngineResult:
         findings: list[Finding] = []
         complete = True
-        for chunk in chunk_document(document, config):
+        for chunk in chunks:
             try:
                 chunk_findings = self._provider.analyze(chunk, config)
             except TokenBudgetExceededError:
