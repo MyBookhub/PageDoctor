@@ -25,16 +25,10 @@
         margin: 0;
         padding: 12px;
       }
-      .bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 10px;
-      }
-      .bar h1 {
+      h1 {
         font-size: 14px;
         font-weight: 700;
-        margin: 0;
+        margin: 0 0 10px;
       }
       button {
         font-family: inherit;
@@ -45,11 +39,15 @@
         font-weight: 500;
         font-size: 12px;
       }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
       .primary {
         background: var(--coral);
         color: #fff;
       }
-      .primary:hover {
+      .primary:hover:not(:disabled) {
         background: var(--deep-coral);
       }
       .ghost {
@@ -57,10 +55,51 @@
         color: var(--deep-coral);
         border: 1px solid var(--line);
       }
+      .settings {
+        background: var(--cream);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+      .settings label {
+        display: block;
+        font-size: 11px;
+        color: var(--grey);
+        margin: 6px 0 2px;
+      }
+      select,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        font-family: inherit;
+        font-size: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 5px;
+        background: #fff;
+      }
+      .checks {
+        display: flex;
+        gap: 12px;
+        margin-top: 4px;
+      }
+      .checks label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--black);
+        font-size: 12px;
+        margin: 0;
+      }
+      .run {
+        width: 100%;
+        margin-top: 10px;
+      }
       #status {
         color: var(--grey);
         font-size: 12px;
-        margin-bottom: 8px;
+        margin: 8px 0;
         min-height: 16px;
       }
       .card {
@@ -106,33 +145,121 @@
         gap: 6px;
         margin-top: 8px;
       }
-      .done {
-        opacity: 0.5;
-      }
     </style>
   </head>
   <body>
-    <div class="bar">
-      <h1>Sophies Anmerkungen</h1>
+    <h1>PageDoctor</h1>
+
+    <div class="settings">
+      <label for="book">Buchtyp</label>
+      <select id="book">
+        <option value="cookbook">Kochbuch</option>
+        <option value="advice">Ratgeber</option>
+        <option value="novel_memoir">Roman / Memoir</option>
+        <option value="childrens">Kinderbuch</option>
+      </select>
+
+      <label for="strict">Strenge</label>
+      <select id="strict">
+        <option value="light">Leicht</option>
+        <option value="standard" selected>Standard</option>
+        <option value="thorough">Gründlich</option>
+      </select>
+
+      <label>Prüfmodi</label>
+      <div class="checks">
+        <label><input type="checkbox" id="m-proof" checked /> Korrektorat</label>
+        <label><input type="checkbox" id="m-edit" checked /> Lektorat</label>
+        <label><input type="checkbox" id="recipe" /> Rezeptmodus</label>
+      </div>
+
+      <label for="dict">Eigenes Wörterbuch (kommagetrennt)</label>
+      <textarea id="dict" rows="2"></textarea>
+
+      <button class="primary run" id="run" onclick="startReview()">Review starten</button>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <strong style="font-size: 13px">Sophies Anmerkungen</strong>
       <button class="ghost" onclick="load()">Aktualisieren</button>
     </div>
     <div id="status">Lädt…</div>
     <div id="list"></div>
 
     <script>
+      function setStatus(message) {
+        document.getElementById('status').textContent = message;
+      }
+
+      function onError(e) {
+        document.getElementById('run').disabled = false;
+        setStatus(e.message);
+      }
+
+      function collectConfig() {
+        const modes = [];
+        if (document.getElementById('m-proof').checked) modes.push('proofreading');
+        if (document.getElementById('m-edit').checked) modes.push('editing');
+        const dict = document
+          .getElementById('dict')
+          .value.split(/[,\n]/)
+          .map(function (s) {
+            return s.trim();
+          })
+          .filter(Boolean);
+        return {
+          modes: modes,
+          book_type: document.getElementById('book').value,
+          strictness: document.getElementById('strict').value,
+          recipe_mode: document.getElementById('recipe').checked,
+          custom_dictionary: dict,
+        };
+      }
+
+      function startReview() {
+        const config = collectConfig();
+        if (!config.modes.length) {
+          setStatus('Bitte mindestens einen Prüfmodus wählen.');
+          return;
+        }
+        document.getElementById('run').disabled = true;
+        setStatus('Review wird gestartet…');
+        google.script.run
+          .withFailureHandler(onError)
+          .withSuccessHandler(function (started) {
+            poll(started.run_id);
+          })
+          .startReview(config);
+      }
+
+      function poll(runId) {
+        google.script.run
+          .withFailureHandler(onError)
+          .withSuccessHandler(function (p) {
+            if (!p.done) {
+              setStatus('Wird geprüft… (' + p.status + ')');
+              window.setTimeout(function () {
+                poll(runId);
+              }, 2500);
+              return;
+            }
+            document.getElementById('run').disabled = false;
+            if (p.status === 'failed') {
+              setStatus('Review fehlgeschlagen.');
+            } else {
+              load();
+            }
+          })
+          .reviewStatus(runId);
+      }
+
       function load() {
         setStatus('Lädt…');
         document.getElementById('list').innerHTML = '';
         google.script.run
+          .withFailureHandler(onError)
           .withSuccessHandler(render)
-          .withFailureHandler(function (e) {
-            setStatus(e.message);
-          })
           .getFindings();
-      }
-
-      function setStatus(message) {
-        document.getElementById('status').textContent = message;
       }
 
       function render(data) {
@@ -159,6 +286,7 @@
           '<div class="actions">' +
           '<button class="primary jump">Springen</button>' +
           '<button class="ghost apply">Übernehmen</button>' +
+          '<button class="ghost dismiss">Verwerfen</button>' +
           '</div>';
 
         const badge = el.querySelector('.badge');
@@ -169,27 +297,43 @@
         el.querySelector('.reason').textContent = finding.reason_de;
 
         el.querySelector('.jump').onclick = function () {
-          run('jumpToQuote', [finding.quote], finding, el, false);
+          jump(finding);
         };
         el.querySelector('.apply').onclick = function () {
-          run('applyFix', [finding.quote, finding.proposed_change], finding, el, true);
+          apply(finding, el);
+        };
+        el.querySelector('.dismiss').onclick = function () {
+          dismiss(finding, el);
         };
         return el;
       }
 
-      function run(fn, args, finding, el, markDone) {
+      function jump(finding) {
         google.script.run
-          .withFailureHandler(function (e) {
-            setStatus(e.message);
-          })
+          .withFailureHandler(onError)
           .withSuccessHandler(function (ok) {
-            if (!ok) {
-              setStatus('Textstelle nicht gefunden: „' + finding.quote + '“');
-            } else if (markDone) {
-              el.classList.add('done');
-            }
+            if (!ok) setStatus('Textstelle nicht gefunden: „' + finding.quote + '“');
           })
-          [fn].apply(null, args);
+          .jumpToQuote(finding.quote);
+      }
+
+      function apply(finding, el) {
+        google.script.run
+          .withFailureHandler(onError)
+          .withSuccessHandler(function (ok) {
+            if (ok) el.remove();
+            else setStatus('Textstelle nicht gefunden: „' + finding.quote + '“');
+          })
+          .applyFix(finding.quote, finding.proposed_change, finding.comment_id);
+      }
+
+      function dismiss(finding, el) {
+        google.script.run
+          .withFailureHandler(onError)
+          .withSuccessHandler(function () {
+            el.remove();
+          })
+          .dismissFinding(finding.comment_id);
       }
 
       load();
