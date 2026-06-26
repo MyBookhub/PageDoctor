@@ -201,6 +201,25 @@ def test_existing_comments_are_paginated() -> None:
     assert client.comments.return_value.list.call_count == 2
 
 
+def test_resolve_comment_posts_a_resolve_reply() -> None:
+    client = _service()
+
+    _adapter(client).resolve_comment(DOC_ID, "comment-1")
+
+    kwargs = client.replies.return_value.create.call_args.kwargs
+    assert kwargs["fileId"] == DOC_ID
+    assert kwargs["commentId"] == "comment-1"
+    assert kwargs["body"] == {"action": "resolve"}
+
+
+def test_resolve_comment_maps_permission_error() -> None:
+    client = _service()
+    client.replies.return_value.create.return_value.execute.side_effect = _http_error(403)
+
+    with pytest.raises(DocumentAccessDeniedError):
+        _adapter(client).resolve_comment(DOC_ID, "comment-1")
+
+
 def test_permission_denied_maps_to_domain_error() -> None:
     client = _service()
     client.comments.return_value.create.return_value.execute.side_effect = _http_error(403)

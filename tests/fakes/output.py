@@ -12,6 +12,7 @@ class FakeOutputPort:
         self.posted: dict[str, str] = {}
         # Every key handed to create, including across runs: a repeat here is a double-post.
         self.post_log: list[str] = []
+        self.resolved: set[str] = set()
         self._fail_after = fail_after
 
     def write_findings(
@@ -27,6 +28,9 @@ class FakeOutputPort:
         report_key = consistency_report_key(run.doc_id)
         if report_key not in already:
             self.post(report_key, "consistency-report")
+
+    def resolve_comment(self, doc_id: str, comment_id: str) -> None:
+        self.resolved.add(comment_id)
 
     def post(self, key: str, value: str) -> None:
         if self._fail_after is not None and len(self.post_log) >= self._fail_after:

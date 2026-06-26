@@ -16,6 +16,7 @@ from pagedoctor.domain.models.finding import (
     Priority,
     Suggestion,
 )
+from pagedoctor.domain.ports.comment_resolver import CommentResolverPort
 from pagedoctor.domain.ports.comments_source import CommentsSourcePort
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
@@ -81,10 +82,14 @@ def build_fake_web(
     def build_comments_source() -> CommentsSourcePort:
         return shared_comments
 
+    def build_comment_resolver() -> CommentResolverPort:
+        return shared_output
+
     container = Container(
         settings=settings or fake_settings(),
         repository=repository,
         build_orchestrator=build_orchestrator,
         build_comments_source=build_comments_source,
+        build_comment_resolver=build_comment_resolver,
     )
     return FakeWeb(container, repository, shared_output, shared_provider)
