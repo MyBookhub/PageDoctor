@@ -1,11 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from uuid import UUID
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from pagedoctor.app.addon_auth import require_addon_token
 from pagedoctor.app.container import get_container
-from pagedoctor.domain.errors import DocumentAccessDeniedError
+from pagedoctor.app.routes import execute_in_background
+from pagedoctor.domain.errors import DocumentAccessDeniedError, RunNotFoundError
 from pagedoctor.domain.models.comment import OpenFinding
+from pagedoctor.domain.models.config import (
+    BookType,
+    CheckMode,
+    CustomDictionary,
+    ReviewConfig,
+    Strictness,
+)
 from pagedoctor.domain.models.finding import Category, Priority
+from pagedoctor.domain.models.run import RunStatus
 from pagedoctor.domain.services.comment_format import findings_from_comments
 from pagedoctor.domain.services.idempotency import finding_key
 from pagedoctor.logging import get_logger
@@ -13,6 +24,8 @@ from pagedoctor.logging import get_logger
 logger = get_logger(__name__)
 
 addon_router = APIRouter(prefix="/docs", dependencies=[Depends(require_addon_token)])
+
+_TERMINAL = {RunStatus.DONE, RunStatus.INCOMPLETE, RunStatus.FAILED}
 
 
 class AddonFinding(BaseModel):
@@ -30,6 +43,29 @@ class DocFindings(BaseModel):
     findings: list[AddonFinding]
 
 
+class ReviewRequest(BaseModel):
+    modes: list[CheckMode]
+    book_type: BookType
+    strictness: Strictness
+    recipe_mode: bool = False
+    custom_dictionary: list[str] = []
+
+
+class ReviewStarted(BaseModel):
+    run_id: str
+    status: str
+
+
+class RunProgress(BaseModel):
+    status: str
+    finding_count: int
+    done: bool
+
+
+class ResolveResponse(BaseModel):
+    resolved: bool
+
+
 def to_addon_finding(doc_id: str, open_finding: OpenFinding) -> AddonFinding:
     finding = open_finding.finding
     suggestion = finding.suggestion
@@ -41,6 +77,16 @@ def to_addon_finding(doc_id: str, open_finding: OpenFinding) -> AddonFinding:
         reason_de=suggestion.reason_de,
         category=finding.category,
         priority=finding.priority,
+    )
+
+
+def to_review_config(body: ReviewRequest) -> ReviewConfig:
+    return ReviewConfig(
+        modes=frozenset(body.modes),
+        book_type=body.book_type,
+        strictness=body.strictness,
+        recipe_mode=body.recipe_mode,
+        custom_dictionary=CustomDictionary(allowed_terms=frozenset(body.custom_dictionary)),
     )
 
 
@@ -58,3 +104,47 @@ def get_doc_findings(doc_id: str, request: Request) -> DocFindings:
     findings = findings_from_comments(comments)
     logger.info("served add-on findings", extra={"finding_count": len(findings)})
     return DocFindings(doc_id=doc_id, findings=[to_addon_finding(doc_id, of) for of in findings])
+
+
+@addon_router.post("/{doc_id}/review")
+def trigger_review(
+    doc_id: str, body: ReviewRequest, request: Request, background_tasks: BackgroundTasks
+) -> ReviewStarted:
+    if not body.modes:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Bitte mindestens einen Prüfmodus auswählen.",
+        )
+    container = get_container(request)
+    budget = container.settings.token_budget
+    orchestrator = container.build_orchestrator(budget)
+    run = orchestrator.create(doc_id, to_review_config(body), budget)
+    background_tasks.add_task(execute_in_background, orchestrator, run)
+    return ReviewStarted(run_id=str(run.id), status=run.status.value)
+
+
+@addon_router.get("/{doc_id}/runs/{run_id}/status")
+def run_status(doc_id: str, run_id: UUID, request: Request) -> RunProgress:
+    container = get_container(request)
+    try:
+        run = container.repository.get(run_id)
+    except RunNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Lauf nicht gefunden."
+        ) from error
+    return RunProgress(
+        status=run.status.value, finding_count=run.finding_count, done=run.status in _TERMINAL
+    )
+
+
+@addon_router.post("/{doc_id}/findings/{comment_id}/resolve")
+def resolve_finding(doc_id: str, comment_id: str, request: Request) -> ResolveResponse:
+    container = get_container(request)
+    try:
+        container.build_comment_resolver().resolve_comment(doc_id, comment_id)
+    except DocumentAccessDeniedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dokument nicht gefunden oder nicht für Sophie freigegeben.",
+        ) from error
+    return ResolveResponse(resolved=True)

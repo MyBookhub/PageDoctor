@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from fakes.comments_source import FakeCommentsSource
+from fakes.web import DOC_ID as WEB_DOC_ID
 from fakes.web import build_fake_web, fake_settings
 from pagedoctor.app.main import create_app
 from pagedoctor.domain.models.comment import DocComment
@@ -88,5 +89,52 @@ def test_unknown_doc_returns_404() -> None:
 
     with _client(source) as client:
         response = client.get("/docs/unknown-doc/findings")
+
+    assert response.status_code == 404
+
+
+def test_resolve_finding_resolves_the_comment() -> None:
+    web = build_fake_web()
+
+    with TestClient(create_app(web.container)) as client:
+        response = client.post(f"/docs/{DOC_ID}/findings/c1/resolve")
+
+    assert response.status_code == 200
+    assert response.json() == {"resolved": True}
+    assert "c1" in web.output.resolved
+
+
+def test_trigger_review_starts_a_run_and_status_reports_done() -> None:
+    web = build_fake_web()
+    body = {"modes": ["proofreading"], "book_type": "cookbook", "strictness": "standard"}
+
+    with TestClient(create_app(web.container)) as client:
+        started = client.post(f"/docs/{WEB_DOC_ID}/review", json=body)
+        run_id = started.json()["run_id"]
+        progress = client.get(f"/docs/{WEB_DOC_ID}/runs/{run_id}/status")
+
+    assert started.status_code == 200
+    assert progress.status_code == 200
+    assert progress.json()["status"] == "done"
+    assert progress.json()["done"] is True
+
+
+def test_trigger_review_rejects_empty_modes() -> None:
+    web = build_fake_web()
+    body = {"modes": [], "book_type": "cookbook", "strictness": "standard"}
+
+    with TestClient(create_app(web.container)) as client:
+        response = client.post(f"/docs/{WEB_DOC_ID}/review", json=body)
+
+    assert response.status_code == 422
+
+
+def test_status_for_unknown_run_returns_404() -> None:
+    web = build_fake_web()
+
+    with TestClient(create_app(web.container)) as client:
+        response = client.get(
+            f"/docs/{WEB_DOC_ID}/runs/00000000-0000-0000-0000-000000000009/status"
+        )
 
     assert response.status_code == 404
