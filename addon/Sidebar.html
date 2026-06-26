@@ -145,6 +145,16 @@
         gap: 6px;
         margin-top: 8px;
       }
+      .banner {
+        display: none;
+        background: #fff3ef;
+        border: 1px solid var(--coral);
+        color: var(--deep-coral);
+        border-radius: 10px;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
@@ -177,6 +187,13 @@
       <textarea id="dict" rows="2"></textarea>
 
       <button class="primary run" id="run" onclick="startReview()">Review starten</button>
+    </div>
+
+    <div id="banner" class="banner">
+      Das Dokument wurde seit der letzten Prüfung geändert.
+      <button class="primary" style="margin-top: 6px" onclick="startReview()">
+        Geänderte Abschnitte prüfen
+      </button>
     </div>
 
     <div style="display: flex; justify-content: space-between; align-items: center">
@@ -256,10 +273,19 @@
       function load() {
         setStatus('Lädt…');
         document.getElementById('list').innerHTML = '';
+        checkState();
         google.script.run
           .withFailureHandler(onError)
           .withSuccessHandler(render)
           .getFindings();
+      }
+
+      function checkState() {
+        google.script.run
+          .withSuccessHandler(function (s) {
+            document.getElementById('banner').style.display = s && s.changed ? 'block' : 'none';
+          })
+          .getState();
       }
 
       function render(data) {

@@ -65,6 +65,10 @@ function reviewStatus(runId) {
   return api_('get', '/docs/' + docId_() + '/runs/' + encodeURIComponent(runId) + '/status');
 }
 
+function getState() {
+  return api_('get', '/docs/' + docId_() + '/state');
+}
+
 function resolveFinding(commentId) {
   api_('post', '/docs/' + docId_() + '/findings/' + encodeURIComponent(commentId) + '/resolve');
   return true;
