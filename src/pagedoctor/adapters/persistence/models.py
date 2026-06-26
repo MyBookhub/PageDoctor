@@ -26,3 +26,15 @@ class ReviewRunRow(Base):
     correlation_id: Mapped[str] = mapped_column(String, nullable=False)
     posted_finding_keys: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     token_budget: Mapped[int | None] = mapped_column(Integer)
+
+
+class DocReviewStateRow(Base):
+    # Metadata only (CLAUDE.md §9): per-doc change-detection fingerprints, never content.
+    # `chunk_hashes` are one-way hashes; `config` carries review settings only.
+    __tablename__ = "doc_review_states"
+
+    doc_id: Mapped[str] = mapped_column(String, primary_key=True)
+    revision_id: Mapped[str | None] = mapped_column(String)
+    chunk_hashes: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    config: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -3,9 +3,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from pagedoctor.adapters.persistence.models import ReviewRunRow
+from pagedoctor.adapters.persistence.models import DocReviewStateRow, ReviewRunRow
 from pagedoctor.domain.errors import RunNotFoundError
 from pagedoctor.domain.models.config import ReviewConfig
+from pagedoctor.domain.models.doc_state import DocReviewState
 from pagedoctor.domain.models.run import ReviewRun, RunStatus
 
 
@@ -30,6 +31,15 @@ class PostgresRunRepository:
                 select(ReviewRunRow).order_by(ReviewRunRow.started_at.desc()).limit(limit)
             )
             return [to_domain(row) for row in rows]
+
+    def get_doc_state(self, doc_id: str) -> DocReviewState | None:
+        with self._session_factory() as session:
+            row = session.get(DocReviewStateRow, doc_id)
+            return doc_state_to_domain(row) if row is not None else None
+
+    def save_doc_state(self, state: DocReviewState) -> None:
+        with self._session_factory() as session, session.begin():
+            session.merge(doc_state_to_row(state))
 
 
 def to_row(run: ReviewRun) -> ReviewRunRow:
@@ -59,4 +69,24 @@ def to_domain(row: ReviewRunRow) -> ReviewRun:
         correlation_id=row.correlation_id,
         posted_finding_keys=frozenset(row.posted_finding_keys),
         token_budget=row.token_budget,
+    )
+
+
+def doc_state_to_row(state: DocReviewState) -> DocReviewStateRow:
+    return DocReviewStateRow(
+        doc_id=state.doc_id,
+        revision_id=state.revision_id,
+        chunk_hashes=sorted(state.chunk_hashes),
+        config=state.config.model_dump(mode="json"),
+        updated_at=state.updated_at,
+    )
+
+
+def doc_state_to_domain(row: DocReviewStateRow) -> DocReviewState:
+    return DocReviewState(
+        doc_id=row.doc_id,
+        revision_id=row.revision_id,
+        chunk_hashes=frozenset(row.chunk_hashes),
+        config=ReviewConfig.model_validate(row.config),
+        updated_at=row.updated_at,
     )
