@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from pagedoctor.adapters.clock import SystemClock
 from pagedoctor.adapters.google.auth import build_docs_service, build_drive_service
+from pagedoctor.adapters.google.comment_resolver import DriveCommentResolver
 from pagedoctor.adapters.google.comments_output import CommentsOutputAdapter
 from pagedoctor.adapters.google.comments_source import GoogleCommentsSource
 from pagedoctor.adapters.google.docs_source import GoogleDocsSource
@@ -63,7 +64,7 @@ def build_container(settings: Settings) -> Container:
         return GoogleCommentsSource(build_drive_service(settings))
 
     def build_comment_resolver() -> CommentResolverPort:
-        return CommentsOutputAdapter(build_drive_service(settings))
+        return DriveCommentResolver(build_drive_service(settings))
 
     return Container(
         settings=settings,

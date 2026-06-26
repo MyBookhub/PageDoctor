@@ -83,15 +83,6 @@ class CommentsOutputAdapter:
         except HttpError as error:
             raise self.map_drive_error(doc_id, error) from error
 
-    def resolve_comment(self, doc_id: str, comment_id: str) -> None:
-        # A Drive comment's `resolved` flag is output-only; resolving is done by a reply.
-        try:
-            self._drive.replies().create(
-                fileId=doc_id, commentId=comment_id, body={"action": "resolve"}, fields="id"
-            ).execute()
-        except HttpError as error:
-            raise self.map_drive_error(doc_id, error) from error
-
     def map_drive_error(self, doc_id: str, error: HttpError) -> PageDoctorError:
         if error.status_code in (403, 404):
             return DocumentAccessDeniedError(doc_id)

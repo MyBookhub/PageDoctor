@@ -53,11 +53,11 @@ class ReviewRequest(BaseModel):
 
 class ReviewStarted(BaseModel):
     run_id: str
-    status: str
+    status: RunStatus
 
 
 class RunProgress(BaseModel):
-    status: str
+    status: RunStatus
     finding_count: int
     done: bool
 
@@ -120,7 +120,7 @@ def trigger_review(
     orchestrator = container.build_orchestrator(budget)
     run = orchestrator.create(doc_id, to_review_config(body), budget)
     background_tasks.add_task(execute_in_background, orchestrator, run)
-    return ReviewStarted(run_id=str(run.id), status=run.status.value)
+    return ReviewStarted(run_id=str(run.id), status=run.status)
 
 
 @addon_router.get("/{doc_id}/runs/{run_id}/status")
@@ -132,8 +132,10 @@ def run_status(doc_id: str, run_id: UUID, request: Request) -> RunProgress:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Lauf nicht gefunden."
         ) from error
+    if run.doc_id != doc_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lauf nicht gefunden.")
     return RunProgress(
-        status=run.status.value, finding_count=run.finding_count, done=run.status in _TERMINAL
+        status=run.status, finding_count=run.finding_count, done=run.status in _TERMINAL
     )
 
 
