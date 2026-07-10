@@ -190,7 +190,7 @@ These are not suggestions — they are the contract every change is held to, enf
 
 ### 5.9 Persistence (SQLAlchemy / Alembic)
 - **SQLAlchemy lives behind the repository.** ORM models never leak past the adapter; `RunRepositoryPort` implementations accept and return **domain models**, not rows.
-- **All schema changes go through Alembic** via the `new-migration` skill — **never hand-author or hand-edit a revision file.** The schema is **metadata only**; there is no column for manuscript or finding text (§9).
+- **All schema changes go through Alembic** via the `new-migration` skill — **never hand-author or hand-edit a revision file.** Most of the schema is **metadata only**; the one exception is the **findings table**, whose finding-text columns are **stored encrypted** (§9.2). There is **no** column for whole-manuscript / chunk body text; do not add one.
 
 ### 5.10 LLM (Anthropic SDK)
 - **Typed structured output** via `messages.parse` into the `ChunkFindings` wrapper model. On validation failure, **raise `LlmResponseInvalidError`** — do not paper over it. **Never raw-string-match** tool or JSON output; parse it into a model.
@@ -315,10 +315,11 @@ class ReviewRun(BaseModel):                    # METADATA ONLY — never holds m
 
 Manuscripts are **unpublished, confidential** works. These are non-negotiable and must be enforced in code, not just intended:
 
-1. **Never stored.** Manuscript text and finding content live only in memory for the duration of a run. `RunRepositoryPort` and the DB hold **metadata only** — doc id, timestamp, mode, settings, status, counts, correlation id. No content columns exist; do not add one.
-2. **Never used for training / retention.** Zero-data-retention + no-training must be contractually on for the Anthropic org. This is why **Fable 5 is disqualified** (§7).
-3. **Minimal Google scope.** Single doc, never the whole Drive (§8).
-4. **Never log manuscript text or PII.** The structured logger (`logging.py`) carries the correlation id and run metadata only. Log **counts and ids**, never quotes, chunk text, comment bodies, or doc content. Treat a log line containing manuscript text as a defect. A redaction guard / lint check should make this hard to do by accident.
+1. **Whole manuscript never stored.** The full manuscript, chunk text, and the document as read from Google **live only in memory** for the duration of a run — never persisted, never cached to disk. There is no column, table, or blob for manuscript body text; do not add one.
+2. **Findings may be stored — encrypted — for tracking.** *Owner decision (2026-07): the DB is the source of truth for findings.* A finding (its quote, proposed change, reason, category, priority, status) **may** be persisted so BookHub can track suggestions and their outcomes without re-parsing Google comments. Because a finding's quote is a verbatim manuscript excerpt, the finding-text columns **must be encrypted at rest** (app-level encryption at the repository boundary — the domain only ever sees plaintext models; ciphertext never crosses a port). Findings carry a **configurable TTL** and are purged after it. The comments Sophie posts remain the creator-facing view (non-BookHub accounts read findings in the Doc). Everything else in the DB stays metadata (ids, hashes, counts, settings, timestamps).
+3. **Never used for training / retention.** Zero-data-retention + no-training must be contractually on for the Anthropic org. This is why **Fable 5 is disqualified** (§7).
+4. **Minimal Google scope.** Single doc, never the whole Drive (§8).
+5. **Never log manuscript or finding text.** The structured logger (`logging.py`) carries the correlation id and run metadata only. Log **counts and ids**, never quotes, chunk text, comment bodies, proposed changes, reasons, or doc content — *storing* a finding (encrypted, on purpose) is allowed; *logging* one is still a defect. The redaction guard / lint check enforces this.
 
 ---
 
