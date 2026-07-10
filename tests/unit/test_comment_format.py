@@ -26,6 +26,17 @@ def test_format_then_parse_round_trips() -> None:
     assert parse_comment_body(format_comment_body(finding, "0123456789abcdef")) == finding
 
 
+def test_comment_reads_as_natural_prose() -> None:
+    body = format_comment_body(_finding(), "0123456789abcdef")
+    # No form-field labels and no bracketed all-caps tag — just Sophie's note.
+    assert "Original:" not in body
+    assert "Vorschlag:" not in body
+    assert "Begründung:" not in body
+    assert "[Korrektorat" not in body
+    assert body.startswith("Korrektorat · Fehler")
+    assert "„Der Hund schläft.“ → „Der Hund schläft tief.“" in body
+
+
 def test_round_trips_across_categories_and_priorities() -> None:
     for category in Category:
         for priority in Priority:
@@ -43,6 +54,15 @@ def test_round_trips_with_umlauts_and_punctuation() -> None:
     assert parse_comment_body(format_comment_body(finding, "0011223344556677")) == finding
 
 
+def test_round_trips_with_nested_german_quotes() -> None:
+    finding = _finding(
+        original="Er sagte „Hallo“ leise.",
+        proposed="Er sagte „Hallo“ ganz leise.",
+        reason="Betonung präzisieren.",
+    )
+    assert parse_comment_body(format_comment_body(finding, "aabbccddeeff0011")) == finding
+
+
 def test_round_trips_with_multiline_reason() -> None:
     finding = _finding(reason="Erste Zeile.\nZweite Zeile mit Begründung.")
     assert parse_comment_body(format_comment_body(finding, "1122334455667788")) == finding
@@ -51,11 +71,11 @@ def test_round_trips_with_multiline_reason() -> None:
 def test_parse_ignores_the_consistency_report() -> None:
     body = "\n".join(
         (
-            "[Konsistenzbericht]",
+            "Konsistenzbericht",
             "",
-            "Keine Auffälligkeiten gefunden.",
+            "Mir sind keine Unstimmigkeiten aufgefallen – schön einheitlich!",
             "",
-            "— Sophie Hoffmann  [#abcdef0123456789]",
+            "– Sophie  [#abcdef0123456789]",
         )
     )
     assert parse_comment_body(body) is None

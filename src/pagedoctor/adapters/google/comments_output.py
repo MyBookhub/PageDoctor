@@ -90,24 +90,34 @@ class CommentsOutputAdapter:
 
 
 def consistency_comment_body(report: ConsistencyReport, key: str) -> str:
-    lines = ["[Konsistenzbericht]", ""]
+    lines = ["Konsistenzbericht", ""]
+    sections = report.term_variants or report.spelling_variants or report.repetition_stats
+    if sections:
+        lines.append(
+            "Mir sind ein paar Dinge aufgefallen, die im ganzen Buch einheitlich sein sollten:"
+        )
+        lines.append("")
     if report.term_variants:
-        lines.append("Begriffsvarianten:")
+        lines.append("Begriffe:")
         lines.extend(_variant_line(variant) for variant in report.term_variants)
+        lines.append("")
     if report.spelling_variants:
         lines.append("Schreibweisen:")
         lines.extend(_variant_line(variant) for variant in report.spelling_variants)
+        lines.append("")
     if report.repetition_stats:
-        lines.append("Wiederholungen:")
+        lines.append("Häufige Wiederholungen:")
         for stat in report.repetition_stats:
-            chapter = f" ({stat.chapter})" if stat.chapter else ""
-            lines.append(f"• {stat.term}: {stat.count}×{chapter}")
-    if len(lines) == 2:
-        lines.append("Keine Auffälligkeiten gefunden.")
-    lines.extend(("", f"— Sophie Hoffmann  [#{key}]"))
+            chapter = f", {stat.chapter}" if stat.chapter else ""
+            lines.append(f"• „{stat.term}“ kommt {stat.count}× vor{chapter}")
+        lines.append("")
+    if not sections:
+        lines.append("Mir sind keine Unstimmigkeiten aufgefallen – schön einheitlich!")
+        lines.append("")
+    lines.append(f"– Sophie  [#{key}]")
     return "\n".join(lines)
 
 
 def _variant_line(variant: TermVariant) -> str:
     others = ", ".join(sorted(variant.variants))
-    return f"• {variant.canonical}: {others} ({variant.occurrences}×)"
+    return f"• „{variant.canonical}“ – auch: {others} ({variant.occurrences}×)"
