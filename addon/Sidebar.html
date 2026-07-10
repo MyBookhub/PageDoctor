@@ -8,6 +8,11 @@
       rel="stylesheet"
     />
     <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
       :root {
         --coral: #e8725a;
         --deep-coral: #c95a44;
@@ -17,6 +22,11 @@
         --grey: #9e9eb0;
         --line: #ece6e1;
       }
+      html,
+      body {
+        overflow-x: hidden;
+        max-width: 100%;
+      }
       body {
         font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
         font-size: 13px;
@@ -24,7 +34,6 @@
         background: var(--warm-white);
         margin: 0;
         padding: 12px;
-        overflow-x: hidden;
       }
       h1 {
         font-size: 14px;
@@ -114,8 +123,10 @@
       }
       .toolbar {
         display: flex;
+        flex-wrap: wrap;
         justify-content: space-between;
         align-items: center;
+        gap: 6px;
         margin-top: 4px;
       }
       #status {
