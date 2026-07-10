@@ -1,73 +1,60 @@
-# PageDoctor — What the database may hold (and what it must not)
+# PageDoctor — What the database holds (and what it must not)
 
-Validation of the question: *"can we add a database that holds the information, but not the
-comments?"* Short answer: **yes — and we already do.** This note records exactly what is stored,
-why it is safe, and the one compliant extension we can add next.
+The store holds two kinds of data: **metadata** (ids, hashes, settings, counts, timestamps) and,
+since the owner decision of 2026-07, **findings** — the suggestions/corrections Sophie produces —
+kept **encrypted at rest**. The whole manuscript is still never stored. This note is the reference
+for where the line is.
 
-The hard rule is CLAUDE.md §9: **manuscript text and finding text live only in memory for the
-duration of a run.** The store is **metadata only**. There is no column for a quote, a proposed
-change, a reason, or a comment body — and we must not add one.
+The governing rule is CLAUDE.md §9 (amended). The DB is now the **source of truth for findings**;
+the comments Sophie posts remain the **creator-facing view** (non-BookHub accounts read findings in
+the Google Doc).
 
-## The line: metadata vs. content
+## The line: what may and may not be stored
 
-| May be stored (metadata) | Must never be stored (content) |
+| May be stored | Must never be stored |
 |---|---|
-| Google doc id, Drive `revisionId` | Manuscript text, chunk text |
-| Timestamps (started, finished, updated) | A finding's quote / original text |
-| Review settings (mode, book type, strictness, recipe flag, custom dictionary) | A finding's proposed change |
-| Status / counts (finding count, run status) | A finding's German reason |
-| One-way **hashes**: chunk content-hashes, posted-finding keys | Any Sophie comment body |
-| Correlation id | Any PII from the manuscript |
+| Google doc id, Drive `revisionId` | The **whole manuscript** / chunk body text |
+| Timestamps, review settings, counts | Anything derived from the manuscript **in plaintext** |
+| One-way hashes (chunk hashes, finding keys) | A finding logged to the structured logs (§9.5) |
+| Findings — quote, proposed change, reason — **encrypted** | — |
 
-The comments themselves live **only** in the Google Doc (Drive). PageDoctor re-derives findings by
-reading Sophie's comments back and parsing them — it never keeps a copy. That is why the comment
-format must round-trip (see `domain/services/comment_format.py`).
+Storing a finding is allowed (encrypted, on purpose). **Logging** a finding is still a defect. And
+the full document text never touches disk — it lives in memory only for the duration of a run.
 
-## What is stored today (both tables are metadata-only)
+## Tables
 
-- **`review_runs`** — one row per review: id, doc id, config, status, timestamps, finding **count**,
-  correlation id, and `posted_finding_keys` (hashes, for idempotent posting). No content.
-- **`doc_review_states`** — one row per document: `revision_id`, `chunk_hashes` (one-way hashes),
-  the last `config` used, and `updated_at`. This is what powers incremental review (only changed
-  chunks get re-sent to the LLM) and change-detection. No content.
+- **`review_runs`** — run metadata: id, doc id, config, status, timestamps, finding count,
+  correlation id, posted-finding key hashes. No content.
+- **`doc_review_states`** — per-document change-detection: `revision_id`, `chunk_hashes` (one-way
+  hashes), the last `config`, `updated_at`. Powers incremental review. No content.
+- **`findings`** — the one content table. `original_text`, `proposed_change`, `reason_de` are
+  **Fernet ciphertext** (never plaintext); `category`, `priority`, `status` are enums; `key` is a
+  hash; `comment_id` is an opaque Drive id; plus `run_id` and timestamps. Composite PK
+  `(doc_id, key)`.
 
-## What we just added (no new table, no migration)
+## Encryption at rest
 
-The sidebar now shows **when a doc was last reviewed** and **pre-fills the settings the PM used last
-time**. Both come straight from the existing `doc_review_states` row (`updated_at` + `config`) via
-the `/state` endpoint. Nothing new is persisted; we surface metadata that was already there. The
-`custom_dictionary` returned here is PM-authored configuration (words Sophie should ignore), not
-manuscript content — it is settings, which §9 explicitly classes as metadata.
+Finding text is encrypted at the persistence boundary (`adapters/persistence/crypto.py`,
+`FindingCipher`), so **ciphertext never crosses a domain port** — the domain and every port handle
+only plaintext `StoredFinding` models. The key is `FINDING_ENCRYPTION_KEY` (a Fernet key), a
+**required** setting: the app refuses to boot without it (fail-fast, §5.12), so findings can never
+be written unencrypted by accident. A live adapter test asserts the plaintext is absent from the raw
+column.
 
-## The next compliant extension (proposed, not yet built)
+## Lifecycle
 
-If we want a durable **audit trail** — "of Sophie's suggestions, how many did the PM apply vs.
-dismiss?" — that survives even after the comments are resolved/deleted in the doc, it is a
-metadata-only table:
+- On each review, the orchestrator posts comments, then reads them back (they carry the real Drive
+  comment ids), and persists each finding to the DB (`status = open`). Re-reviews are idempotent —
+  an already-stored finding keeps its status (an applied/dismissed one never reverts to open).
+- The sidebar reads findings straight from the DB (no re-parsing of comment text).
+- **Apply / dismiss** flips the finding's status (`applied` / `dismissed`) and resolves the Drive
+  comment. A finding whose quote no longer appears is marked `obsolete` and its comment resolved.
+- **TTL:** findings are purged `FINDINGS_TTL_DAYS` (default 90) after they were last touched, so
+  stored excerpts don't linger indefinitely.
 
-```
-finding_events
-  doc_id        text        -- which document
-  finding_key   text        -- the one-way hash we already compute (no content)
-  comment_id    text        -- the Drive comment id (an opaque id, not content)
-  priority      text        -- FEHLER / EMPFEHLUNG / HINWEIS
-  category      text        -- proofreading / editing
-  outcome       text        -- posted / applied / dismissed / resolved-obsolete
-  at            timestamptz
-```
+## Hosting note
 
-Every column is a hash, an id, an enum, or a timestamp — **no quote, no proposed change, no
-reason**. This gives per-run applied/dismissed/stale counts for the human-proofreading handoff
-without ever storing what the manuscript says.
-
-**Blocked on tooling, not design.** Adding it means a schema migration, and migrations must be
-generated by Alembic autogenerate against a running database (never hand-authored — see the
-`new-migration` skill). Bring the dev database up (`docker compose up -d db`, then `make migrate`)
-and this table can be added cleanly with domain model + port method + repository + fake, all
-testable.
-
-## What we will not do
-
-Store the actual suggestions/manuscript in the DB to avoid re-reading Drive. That would trade the
-§9 guarantee for a caching convenience — not an acceptable trade. Re-deriving from the doc's own
-comments keeps the single source of truth in the author's document, where it belongs.
+On the current single VPS the disk is not encrypted at the block level, which is why finding text is
+encrypted at the **application** layer regardless of host. For real production this should move to a
+managed encrypted database (e.g. RDS with KMS + automated backups + PITR); the app-level encryption
+then stacks on top. See the deploy runbook.
