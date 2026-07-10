@@ -8,6 +8,7 @@ REQUIRED = {
     "DATABASE_URL": "postgresql+psycopg://u:pw@localhost:5432/db",
     "ANTHROPIC_API_KEY": "SENTINEL_ANTHROPIC_KEY",
     "GOOGLE_SERVICE_ACCOUNT_FILE": "/tmp/sa.json",
+    "FINDING_ENCRYPTION_KEY": "hqRJtL1uKChplt01KMGr1zMQqQ9R1xiRa8139J3lo6U=",
 }
 
 

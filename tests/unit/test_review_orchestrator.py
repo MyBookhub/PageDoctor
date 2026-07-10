@@ -1,11 +1,13 @@
 import uuid
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
 import pytest
 
 from fakes.clock import FakeClock
 from fakes.comments_source import FakeCommentsSource
 from fakes.document_source import FakeDocumentSource
+from fakes.finding_repository import InMemoryFindingRepository
 from fakes.llm import FakeLlmProvider
 from fakes.output import FakeOutputPort
 from fakes.run_repository import InMemoryRunRepository
@@ -22,6 +24,7 @@ from pagedoctor.domain.models.finding import (
     Suggestion,
 )
 from pagedoctor.domain.models.run import ReviewRun, RunStatus
+from pagedoctor.domain.models.stored_finding import FindingStatus, StoredFinding
 from pagedoctor.domain.services.comment_format import format_comment_body
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
@@ -63,6 +66,7 @@ def _orchestrator(
     provider: FakeLlmProvider,
     document: SourceDocument | None = None,
     comments_source: FakeCommentsSource | None = None,
+    finding_repository: InMemoryFindingRepository | None = None,
 ) -> ReviewOrchestrator:
     source = FakeDocumentSource({DOC_ID: document or _document()})
     return ReviewOrchestrator(
@@ -73,6 +77,7 @@ def _orchestrator(
         clock=FakeClock(),
         comments_source=comments_source or FakeCommentsSource({DOC_ID: []}),
         comment_resolver=output,
+        finding_repository=finding_repository or InMemoryFindingRepository(),
     )
 
 
@@ -266,6 +271,64 @@ def test_incremental_resolves_findings_whose_text_is_gone() -> None:
     assert "cX" in output.resolved
 
 
+def test_incremental_stores_open_findings_in_the_db() -> None:
+    repository = InMemoryRunRepository()
+    findings_db = InMemoryFindingRepository()
+    present = _finding("ist braun")
+    comment = DocComment(
+        id="c1", content=format_comment_body(present, finding_key(DOC_ID, present)), resolved=False
+    )
+    orchestrator = _orchestrator(
+        repository,
+        FakeOutputPort(),
+        _provider("ist braun"),
+        document=_document(revision_id="r1"),
+        comments_source=FakeCommentsSource({DOC_ID: [comment]}),
+        finding_repository=findings_db,
+    )
+
+    orchestrator.execute_incremental(orchestrator.create(DOC_ID, _config()))
+
+    stored = findings_db.open_findings(DOC_ID)
+    assert [(s.comment_id, s.finding) for s in stored] == [("c1", present)]
+
+
+def test_incremental_marks_gone_finding_obsolete_in_the_db() -> None:
+    repository = InMemoryRunRepository()
+    findings_db = InMemoryFindingRepository()
+    gone = _finding("ein Satz der nicht mehr existiert")
+    findings_db.save_findings(
+        [
+            StoredFinding(
+                key=finding_key(DOC_ID, gone),
+                doc_id=DOC_ID,
+                run_id=uuid.UUID(int=7),
+                comment_id="cX",
+                finding=gone,
+                status=FindingStatus.OPEN,
+                created_at=datetime(2026, 7, 9, tzinfo=UTC),
+                updated_at=datetime(2026, 7, 9, tzinfo=UTC),
+            )
+        ]
+    )
+    comment = DocComment(
+        id="cX", content=format_comment_body(gone, finding_key(DOC_ID, gone)), resolved=False
+    )
+    orchestrator = _orchestrator(
+        repository,
+        FakeOutputPort(),
+        _provider("ist braun"),
+        document=_document(revision_id="r1"),
+        comments_source=FakeCommentsSource({DOC_ID: [comment]}),
+        finding_repository=findings_db,
+    )
+
+    orchestrator.execute_incremental(orchestrator.create(DOC_ID, _config()))
+
+    # The gone finding is no longer open (marked obsolete), not lingering in the sidebar.
+    assert findings_db.open_findings(DOC_ID) == []
+
+
 def test_run_binds_correlation_id_for_downstream_logs_then_resets() -> None:
     seen: list[str] = []
 
@@ -287,6 +350,7 @@ def test_run_binds_correlation_id_for_downstream_logs_then_resets() -> None:
         clock=FakeClock(),
         comments_source=FakeCommentsSource({DOC_ID: []}),
         comment_resolver=FakeOutputPort(),
+        finding_repository=InMemoryFindingRepository(),
     )
 
     run = orchestrator.start(DOC_ID, _config())

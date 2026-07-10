@@ -1,16 +1,45 @@
+from datetime import UTC, datetime
+from uuid import UUID
+
 from fastapi.testclient import TestClient
 
 from fakes.comments_source import FakeCommentsSource
 from fakes.web import DOC_ID as WEB_DOC_ID
-from fakes.web import build_fake_web, fake_settings
+from fakes.web import FakeWeb, build_fake_web, fake_settings
 from pagedoctor.app.main import create_app
 from pagedoctor.domain.models.comment import DocComment
 from pagedoctor.domain.models.finding import Category, Finding, Priority, Suggestion
+from pagedoctor.domain.models.stored_finding import FindingStatus, StoredFinding
 from pagedoctor.domain.services.comment_format import format_comment_body
 from pagedoctor.domain.services.idempotency import finding_key
 
 DOC_ID = "doc-xyz"
 TOKEN = "addon-secret-token"
+_AT = datetime(2026, 7, 9, tzinfo=UTC)
+
+
+def _stored(
+    finding: Finding,
+    comment_id: str,
+    doc_id: str = WEB_DOC_ID,
+    status: FindingStatus = FindingStatus.OPEN,
+) -> StoredFinding:
+    return StoredFinding(
+        key=finding_key(doc_id, finding),
+        doc_id=doc_id,
+        run_id=UUID(int=1),
+        comment_id=comment_id,
+        finding=finding,
+        status=status,
+        created_at=_AT,
+        updated_at=_AT,
+    )
+
+
+def _seeded_web(finding: Finding, comment_id: str = "c1") -> FakeWeb:
+    web = build_fake_web()
+    web.finding_repository.save_findings([_stored(finding, comment_id)])
+    return web
 
 
 def _finding(
@@ -43,24 +72,17 @@ def _client(source: FakeCommentsSource, *, token: str | None = None) -> TestClie
 
 def test_returns_open_findings_as_json() -> None:
     finding = _finding()
-    source = FakeCommentsSource(
-        {
-            DOC_ID: [
-                _comment(finding, comment_id="c1"),
-                _comment(_finding("Erledigt."), resolved=True, comment_id="c2"),
-            ]
-        }
-    )
+    web = _seeded_web(finding, comment_id="c1")
 
-    with _client(source) as client:
-        response = client.get(f"/docs/{DOC_ID}/findings")
+    with TestClient(create_app(web.container)) as client:
+        response = client.get(f"/docs/{WEB_DOC_ID}/findings")
 
     assert response.status_code == 200
     body = response.json()
-    assert body["doc_id"] == DOC_ID
+    assert body["doc_id"] == WEB_DOC_ID
     assert body["findings"] == [
         {
-            "key": finding_key(DOC_ID, finding),
+            "key": finding_key(WEB_DOC_ID, finding),
             "comment_id": "c1",
             "quote": "Der Hund schläft.",
             "proposed_change": "Der Hund schläft tief.",
@@ -72,36 +94,51 @@ def test_returns_open_findings_as_json() -> None:
 
 
 def test_token_required_when_configured() -> None:
-    source = FakeCommentsSource({DOC_ID: [_comment(_finding())]})
+    web = build_fake_web(settings=fake_settings(addon_token=TOKEN))
 
-    with _client(source, token=TOKEN) as client:
-        missing = client.get(f"/docs/{DOC_ID}/findings")
-        wrong = client.get(f"/docs/{DOC_ID}/findings", headers={"Authorization": "Bearer nope"})
-        ok = client.get(f"/docs/{DOC_ID}/findings", headers={"Authorization": f"Bearer {TOKEN}"})
+    with TestClient(create_app(web.container)) as client:
+        missing = client.get(f"/docs/{WEB_DOC_ID}/findings")
+        wrong = client.get(f"/docs/{WEB_DOC_ID}/findings", headers={"Authorization": "Bearer nope"})
+        ok = client.get(
+            f"/docs/{WEB_DOC_ID}/findings", headers={"Authorization": f"Bearer {TOKEN}"}
+        )
 
     assert missing.status_code == 401
     assert wrong.status_code == 401
     assert ok.status_code == 200
 
 
-def test_unknown_doc_returns_404() -> None:
-    source = FakeCommentsSource({DOC_ID: [_comment(_finding())]})
-
-    with _client(source) as client:
-        response = client.get("/docs/unknown-doc/findings")
-
-    assert response.status_code == 404
-
-
-def test_resolve_finding_resolves_the_comment() -> None:
+def test_unreviewed_doc_returns_no_findings() -> None:
     web = build_fake_web()
 
     with TestClient(create_app(web.container)) as client:
-        response = client.post(f"/docs/{DOC_ID}/findings/c1/resolve")
+        response = client.get(f"/docs/{WEB_DOC_ID}/findings")
+
+    assert response.status_code == 200
+    assert response.json()["findings"] == []
+
+
+def test_resolve_records_the_outcome_and_resolves_the_comment() -> None:
+    finding = _finding()
+    web = _seeded_web(finding, comment_id="c1")
+
+    with TestClient(create_app(web.container)) as client:
+        response = client.post(f"/docs/{WEB_DOC_ID}/findings/c1/resolve?outcome=applied")
 
     assert response.status_code == 200
     assert response.json() == {"resolved": True}
     assert "c1" in web.output.resolved
+    # The finding is no longer open (its outcome was recorded).
+    assert web.finding_repository.open_findings(WEB_DOC_ID) == []
+
+
+def test_resolve_requires_an_outcome() -> None:
+    web = _seeded_web(_finding(), comment_id="c1")
+
+    with TestClient(create_app(web.container)) as client:
+        response = client.post(f"/docs/{WEB_DOC_ID}/findings/c1/resolve")
+
+    assert response.status_code == 422
 
 
 def test_trigger_review_starts_a_run_and_status_reports_done() -> None:

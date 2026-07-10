@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Callable, Sequence
+from datetime import timedelta
 from uuid import UUID
 
 from pagedoctor.domain.models.config import ReviewConfig
@@ -7,10 +8,12 @@ from pagedoctor.domain.models.doc_state import DocReviewState
 from pagedoctor.domain.models.document import SourceDocument, TextChunk
 from pagedoctor.domain.models.engine import EngineResult
 from pagedoctor.domain.models.run import ReviewRun, RunStatus
+from pagedoctor.domain.models.stored_finding import FindingStatus, StoredFinding
 from pagedoctor.domain.ports.clock import ClockPort
 from pagedoctor.domain.ports.comment_resolver import CommentResolverPort
 from pagedoctor.domain.ports.comments_source import CommentsSourcePort
 from pagedoctor.domain.ports.document_source import DocumentSourcePort
+from pagedoctor.domain.ports.finding_repository import FindingRepositoryPort
 from pagedoctor.domain.ports.output import OutputPort
 from pagedoctor.domain.ports.run_repository import RunRepositoryPort
 from pagedoctor.domain.services.chunker import chunk_document
@@ -33,6 +36,8 @@ class ReviewOrchestrator:
         clock: ClockPort,
         comments_source: CommentsSourcePort,
         comment_resolver: CommentResolverPort,
+        finding_repository: FindingRepositoryPort,
+        findings_ttl_days: int = 90,
     ) -> None:
         self._source = source
         self._engine = engine
@@ -41,6 +46,8 @@ class ReviewOrchestrator:
         self._clock = clock
         self._comments_source = comments_source
         self._comment_resolver = comment_resolver
+        self._finding_repository = finding_repository
+        self._findings_ttl_days = findings_ttl_days
 
     def create(
         self, doc_id: str, config: ReviewConfig, token_budget: int | None = None
@@ -126,10 +133,10 @@ class ReviewOrchestrator:
         )
         self._repository.save(writing)
         self._output.write_findings(writing, result.findings, result.report)
-        # Persist the new fingerprint before the best-effort cleanup, so a failure resolving
-        # obsolete comments can't cost the next pass a full re-review.
+        # Persist the new fingerprint before the best-effort sync, so a failure syncing
+        # findings can't cost the next pass a full re-review.
         self.save_review_state(document, all_chunks, run.config)
-        self.resolve_obsolete_findings(document)
+        self.sync_findings(writing, document)
         return self.checkpoint_completion(writing, result)
 
     def chunks_to_review(
@@ -142,14 +149,36 @@ class ReviewOrchestrator:
             return []
         return changed_chunks(stored.chunk_hashes, all_chunks)
 
-    def resolve_obsolete_findings(self, document: SourceDocument) -> None:
-        # A finding whose quoted text no longer appears in the doc is obsolete; resolve its
-        # comment so it stops surfacing in the sidebar.
+    def sync_findings(self, run: ReviewRun, document: SourceDocument) -> None:
+        # The DB is the source of truth for findings (§9.2). Read the comments Sophie just
+        # posted (they carry the real Drive comment ids), persist each to the DB, and resolve
+        # any whose quoted text no longer appears — those are obsolete. Reading the comments
+        # back also backfills findings posted before this store existed.
+        now = self._clock.now()
+        to_store: list[StoredFinding] = []
         for open_finding in findings_from_comments(
             self._comments_source.read_comments(document.doc_id)
         ):
-            if open_finding.finding.suggestion.original_text not in document.text:
+            if open_finding.finding.suggestion.original_text in document.text:
+                to_store.append(
+                    StoredFinding(
+                        key=finding_key(document.doc_id, open_finding.finding),
+                        doc_id=document.doc_id,
+                        run_id=run.id,
+                        comment_id=open_finding.comment_id,
+                        finding=open_finding.finding,
+                        status=FindingStatus.OPEN,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+            else:
                 self._comment_resolver.resolve_comment(document.doc_id, open_finding.comment_id)
+                self._finding_repository.set_status(
+                    document.doc_id, open_finding.comment_id, FindingStatus.OBSOLETE
+                )
+        self._finding_repository.save_findings(to_store)
+        self._finding_repository.purge_expired(now - timedelta(days=self._findings_ttl_days))
 
     def save_review_state(
         self, document: SourceDocument, all_chunks: Sequence[TextChunk], config: ReviewConfig

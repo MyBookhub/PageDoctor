@@ -5,6 +5,7 @@ import pytest
 from fakes.clock import FakeClock
 from fakes.comments_source import FakeCommentsSource
 from fakes.document_source import FakeDocumentSource
+from fakes.finding_repository import InMemoryFindingRepository
 from fakes.llm import FakeLlmProvider
 from fakes.output import FakeOutputPort
 from fakes.run_repository import InMemoryRunRepository
@@ -75,6 +76,7 @@ def _orchestrator(
         clock=FakeClock(),
         comments_source=FakeCommentsSource({DOC_ID: []}),
         comment_resolver=FakeOutputPort(),
+        finding_repository=InMemoryFindingRepository(),
     )
 
 

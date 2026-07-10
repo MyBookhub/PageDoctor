@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from fakes.clock import FakeClock
 from fakes.comments_source import FakeCommentsSource
 from fakes.document_source import FakeDocumentSource
+from fakes.finding_repository import InMemoryFindingRepository
 from fakes.llm import FakeLlmProvider
 from fakes.output import FakeOutputPort
 from fakes.run_repository import InMemoryRunRepository
@@ -53,6 +54,7 @@ def _default_provider() -> FakeLlmProvider:
 class FakeWeb:
     container: Container
     repository: InMemoryRunRepository
+    finding_repository: InMemoryFindingRepository
     output: FakeOutputPort
     provider: FakeLlmProvider
 
@@ -64,6 +66,7 @@ def build_fake_web(
     comments_source: CommentsSourcePort | None = None,
 ) -> FakeWeb:
     repository = InMemoryRunRepository()
+    finding_repository = InMemoryFindingRepository()
     shared_output = output or FakeOutputPort()
     shared_provider = provider or _default_provider()
     shared_comments = comments_source or FakeCommentsSource({DOC_ID: []})
@@ -81,6 +84,7 @@ def build_fake_web(
             clock=FakeClock(),
             comments_source=shared_comments,
             comment_resolver=shared_output,
+            finding_repository=finding_repository,
         )
 
     def build_comments_source() -> CommentsSourcePort:
@@ -95,9 +99,10 @@ def build_fake_web(
     container = Container(
         settings=settings or fake_settings(),
         repository=repository,
+        finding_repository=finding_repository,
         build_orchestrator=build_orchestrator,
         build_comments_source=build_comments_source,
         build_comment_resolver=build_comment_resolver,
         build_document_source=build_document_source,
     )
-    return FakeWeb(container, repository, shared_output, shared_provider)
+    return FakeWeb(container, repository, finding_repository, shared_output, shared_provider)

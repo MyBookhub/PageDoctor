@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
@@ -6,7 +7,6 @@ from pydantic import BaseModel
 from pagedoctor.app.addon_auth import require_addon_token
 from pagedoctor.app.container import get_container
 from pagedoctor.domain.errors import DocumentAccessDeniedError, RunNotFoundError
-from pagedoctor.domain.models.comment import OpenFinding
 from pagedoctor.domain.models.config import (
     BookType,
     CheckMode,
@@ -16,8 +16,7 @@ from pagedoctor.domain.models.config import (
 )
 from pagedoctor.domain.models.finding import Category, Priority
 from pagedoctor.domain.models.run import ReviewRun, RunStatus
-from pagedoctor.domain.services.comment_format import findings_from_comments
-from pagedoctor.domain.services.idempotency import finding_key
+from pagedoctor.domain.models.stored_finding import FindingStatus, StoredFinding
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
 from pagedoctor.logging import get_logger
 
@@ -104,12 +103,12 @@ def to_last_config(config: ReviewConfig) -> LastConfig:
     )
 
 
-def to_addon_finding(doc_id: str, open_finding: OpenFinding) -> AddonFinding:
-    finding = open_finding.finding
+def to_addon_finding(stored: StoredFinding) -> AddonFinding:
+    finding = stored.finding
     suggestion = finding.suggestion
     return AddonFinding(
-        key=finding_key(doc_id, finding),
-        comment_id=open_finding.comment_id,
+        key=stored.key,
+        comment_id=stored.comment_id or "",
         quote=suggestion.original_text,
         proposed_change=suggestion.proposed_change,
         reason_de=suggestion.reason_de,
@@ -130,18 +129,12 @@ def to_review_config(body: ReviewRequest) -> ReviewConfig:
 
 @addon_router.get("/{doc_id}/findings")
 def get_doc_findings(doc_id: str, request: Request) -> DocFindings:
+    # The DB is the source of truth (§9.2): read structured findings directly, no re-parsing
+    # of Google comments on every sidebar load.
     container = get_container(request)
-    source = container.build_comments_source()
-    try:
-        comments = source.read_comments(doc_id)
-    except DocumentAccessDeniedError as error:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dokument nicht gefunden oder nicht für Sophie freigegeben.",
-        ) from error
-    findings = findings_from_comments(comments)
+    findings = container.finding_repository.open_findings(doc_id)
     logger.info("served add-on findings", extra={"finding_count": len(findings)})
-    return DocFindings(doc_id=doc_id, findings=[to_addon_finding(doc_id, of) for of in findings])
+    return DocFindings(doc_id=doc_id, findings=[to_addon_finding(stored) for stored in findings])
 
 
 @addon_router.post("/{doc_id}/review")
@@ -178,7 +171,11 @@ def run_status(doc_id: str, run_id: UUID, request: Request) -> RunProgress:
 
 
 @addon_router.post("/{doc_id}/findings/{comment_id}/resolve")
-def resolve_finding(doc_id: str, comment_id: str, request: Request) -> ResolveResponse:
+def resolve_finding(
+    doc_id: str, comment_id: str, outcome: Literal["applied", "dismissed"], request: Request
+) -> ResolveResponse:
+    # Resolve the Drive comment (the creator-facing view) first; only record the outcome in
+    # the DB once that succeeded, so a failed resolve never leaves a false "applied" behind.
     container = get_container(request)
     try:
         container.build_comment_resolver().resolve_comment(doc_id, comment_id)
@@ -187,6 +184,8 @@ def resolve_finding(doc_id: str, comment_id: str, request: Request) -> ResolveRe
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Dokument nicht gefunden oder nicht für Sophie freigegeben.",
         ) from error
+    new_status = FindingStatus.APPLIED if outcome == "applied" else FindingStatus.DISMISSED
+    container.finding_repository.set_status(doc_id, comment_id, new_status)
     return ResolveResponse(resolved=True)
 
 

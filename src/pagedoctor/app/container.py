@@ -13,11 +13,14 @@ from pagedoctor.adapters.google.comments_output import CommentsOutputAdapter
 from pagedoctor.adapters.google.comments_source import GoogleCommentsSource
 from pagedoctor.adapters.google.docs_source import GoogleDocsSource
 from pagedoctor.adapters.llm.anthropic_provider import AnthropicLlmProvider
+from pagedoctor.adapters.persistence.crypto import FindingCipher
+from pagedoctor.adapters.persistence.finding_repository import PostgresFindingRepository
 from pagedoctor.adapters.persistence.run_repository import PostgresRunRepository
 from pagedoctor.config import Settings
 from pagedoctor.domain.ports.comment_resolver import CommentResolverPort
 from pagedoctor.domain.ports.comments_source import CommentsSourcePort
 from pagedoctor.domain.ports.document_source import DocumentSourcePort
+from pagedoctor.domain.ports.finding_repository import FindingRepositoryPort
 from pagedoctor.domain.ports.run_repository import RunRepositoryPort
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
@@ -27,6 +30,7 @@ from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
 class Container:
     settings: Settings
     repository: RunRepositoryPort
+    finding_repository: FindingRepositoryPort
     build_orchestrator: Callable[[int | None], ReviewOrchestrator]
     build_comments_source: Callable[[], CommentsSourcePort]
     build_comment_resolver: Callable[[], CommentResolverPort]
@@ -45,6 +49,9 @@ def build_container(settings: Settings) -> Container:
     # safe to reuse across concurrent runs; the per-run adapters below are not.
     session_factory = sessionmaker(bind=create_engine(settings.database_url))
     repository = PostgresRunRepository(session_factory)
+    finding_repository = PostgresFindingRepository(
+        session_factory, FindingCipher(settings.finding_encryption_key.get_secret_value())
+    )
     clock = SystemClock()
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
 
@@ -62,6 +69,8 @@ def build_container(settings: Settings) -> Container:
             clock=clock,
             comments_source=GoogleCommentsSource(build_drive_service(settings)),
             comment_resolver=DriveCommentResolver(build_drive_service(settings)),
+            finding_repository=finding_repository,
+            findings_ttl_days=settings.findings_ttl_days,
         )
 
     def build_comments_source() -> CommentsSourcePort:
@@ -76,6 +85,7 @@ def build_container(settings: Settings) -> Container:
     return Container(
         settings=settings,
         repository=repository,
+        finding_repository=finding_repository,
         build_orchestrator=build_orchestrator,
         build_comments_source=build_comments_source,
         build_comment_resolver=build_comment_resolver,

@@ -69,8 +69,11 @@ function getState() {
   return api_('get', '/docs/' + docId_() + '/state');
 }
 
-function resolveFinding(commentId) {
-  api_('post', '/docs/' + docId_() + '/findings/' + encodeURIComponent(commentId) + '/resolve');
+function resolveFinding(commentId, outcome) {
+  api_(
+    'post',
+    '/docs/' + docId_() + '/findings/' + encodeURIComponent(commentId) + '/resolve?outcome=' + outcome
+  );
   return true;
 }
 
@@ -98,10 +101,10 @@ function applyFix(quote, replacement, commentId) {
   const end = found.getEndOffsetInclusive();
   text.deleteText(start, end);
   text.insertText(start, replacement);
-  resolveFinding(commentId);
+  resolveFinding(commentId, 'applied');
   return true;
 }
 
 function dismissFinding(commentId) {
-  return resolveFinding(commentId);
+  return resolveFinding(commentId, 'dismissed');
 }
