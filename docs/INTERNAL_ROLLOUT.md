@@ -12,9 +12,12 @@ This is an ops/handoff note. It records the exact console paths and the load-bea
 
 - **Backend deployed** on the netcup VPS `152.53.206.224` (Debian 12): the FastAPI app under
   systemd (`pagedoctor.service`), native Postgres 15 (migrated), 4 GB swap, ufw (22/80/443).
-- **Public HTTPS** is currently a **temporary Cloudflare quick tunnel**
-  (`https://<random>.trycloudflare.com`) — trusted cert, but **ephemeral** (a reboot/tunnel
-  restart changes the URL) and it terminates TLS at Cloudflare's edge. **Test-only.**
+  `pagedoctor`, `caddy`, and `postgresql` are all **enabled on boot** — the stack comes back after
+  a reboot.
+- **Public HTTPS is live and stable** at **`https://lektorat.mybookhub.de`** — Caddy terminates TLS
+  on our own box with an auto-renewing **Let's Encrypt** cert (no third party sees plaintext). The
+  earlier Cloudflare quick tunnel was **retired** (it was ephemeral and terminated TLS at
+  Cloudflare's edge).
 - **Add-on code** (`Code.gs`, `Sidebar.html`, `appsscript.json`) is pushed via `clasp` to the
   Apps Script project linked to GCP project `internal-proofreading-bookhub` (415778707338).
 
@@ -39,20 +42,20 @@ regardless of your project role.
 
 ---
 
-## 2. Backend — stable HTTPS (replaces the tunnel)
+## 2. Backend — stable HTTPS (DONE)
 
 Owner: ops (handled by the developer/agent on the server).
 
-1. Add a DNS **A record**: `pagedoctor.mybookhub.de` -> `152.53.206.224` (needs domain-management
-   access; ask whoever manages mybookhub.de DNS).
-2. On the box, point Caddy at that hostname (`/etc/caddy/Caddyfile`), start Caddy — it obtains a
-   **Let's Encrypt** cert automatically. Stop the Cloudflare tunnel. TLS now terminates on our own
-   server (no third party sees plaintext — required for confidential manuscripts).
-3. Set the add-on's `BACKEND_URL` Script Property to `https://pagedoctor.mybookhub.de`.
-4. **Harden the box:** rotate the root password, add SSH keys + disable password auth, keep ufw.
-
-Until the A record exists, the temporary tunnel URL is used for testing only — never for real
-creator manuscripts.
+1. **DNS A/AAAA records** for `lektorat.mybookhub.de` -> `152.53.206.224` (+ IPv6) are live on the
+   mybookhub.de authoritative nameservers. Done.
+2. `/etc/caddy/Caddyfile` points at `lektorat.mybookhub.de` -> `reverse_proxy 127.0.0.1:8000`;
+   Caddy is `enable --now` and obtained a **Let's Encrypt** cert (auto-renews). The Cloudflare
+   tunnel is retired. TLS terminates on our own server (no third party sees plaintext — required
+   for confidential manuscripts). Done.
+3. **Remaining:** set the add-on's `BACKEND_URL` Script Property to `https://lektorat.mybookhub.de`
+   (step 3 below). This is the only switch left for go-live.
+4. **Harden the box** (recommended, not yet done): rotate the root password, add SSH keys + disable
+   password auth, keep ufw.
 
 ---
 
@@ -62,7 +65,7 @@ In the Apps Script project (linked to `internal-proofreading-bookhub`):
 
 1. Confirm the latest code is present (`clasp push` from `addon/` already did this).
 2. **Project Settings -> Script Properties** -> add:
-   - `BACKEND_URL` = the HTTPS URL (tunnel for testing; `https://pagedoctor.mybookhub.de` for go-live).
+   - `BACKEND_URL` = `https://lektorat.mybookhub.de` (the live, stable HTTPS URL).
    - `ADDON_TOKEN` = the exact value from the backend `.env` (the endpoint's bearer token).
 
 ---
@@ -117,7 +120,7 @@ nothing to paste, in any doc.
 - **Review starten** runs; **Übernehmen/Verwerfen** resolve the comment (no reappearance on reload).
 - Editing a paragraph then re-checking only re-reviews the changed section (the "Dokument geändert"
   banner appears).
-- Backend logs show requests arriving over `https://pagedoctor.mybookhub.de`; no manuscript text is
+- Backend logs show requests arriving over `https://lektorat.mybookhub.de`; no manuscript text is
   logged (counts/ids only).
 
 ---
