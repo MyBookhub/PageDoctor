@@ -24,6 +24,7 @@
         background: var(--warm-white);
         margin: 0;
         padding: 12px;
+        overflow-x: hidden;
       }
       h1 {
         font-size: 14px;
@@ -35,13 +36,14 @@
         cursor: pointer;
         border: none;
         border-radius: 999px;
-        padding: 6px 14px;
+        padding: 6px 12px;
         font-weight: 500;
         font-size: 12px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 5px;
+        white-space: nowrap;
       }
       button:disabled {
         opacity: 0.5;
@@ -94,7 +96,8 @@
       }
       .checks {
         display: flex;
-        gap: 12px;
+        flex-wrap: wrap;
+        gap: 6px 12px;
         margin-top: 4px;
       }
       .checks label {
@@ -181,8 +184,13 @@
       }
       .actions {
         display: flex;
+        flex-wrap: wrap;
         gap: 6px;
         margin-top: 8px;
+      }
+      .actions button {
+        flex: 1 1 auto;
+        padding: 6px 8px;
       }
       .banner {
         display: none;
