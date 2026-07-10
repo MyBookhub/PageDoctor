@@ -136,19 +136,39 @@ def test_state_is_unreviewed_before_any_review() -> None:
         response = client.get(f"/docs/{WEB_DOC_ID}/state")
 
     assert response.status_code == 200
-    assert response.json() == {"reviewed": False, "changed": False}
+    state = response.json()
+    assert state["reviewed"] is False
+    assert state["changed"] is False
+    assert state["last_reviewed"] is None
+    assert state["last_config"] is None
 
 
 def test_state_reports_reviewed_after_a_review() -> None:
     web = build_fake_web()
-    body = {"modes": ["proofreading"], "book_type": "cookbook", "strictness": "standard"}
+    body = {
+        "modes": ["proofreading"],
+        "book_type": "cookbook",
+        "strictness": "thorough",
+        "recipe_mode": True,
+        "custom_dictionary": ["Ragout", "Sous-vide"],
+    }
 
     with TestClient(create_app(web.container)) as client:
         client.post(f"/docs/{WEB_DOC_ID}/review", json=body)
         response = client.get(f"/docs/{WEB_DOC_ID}/state")
 
     assert response.status_code == 200
-    assert response.json()["reviewed"] is True
+    state = response.json()
+    assert state["reviewed"] is True
+    assert state["last_reviewed"] is not None
+    # The stored settings come back so the sidebar can pre-fill the form next time.
+    assert state["last_config"] == {
+        "modes": ["proofreading"],
+        "book_type": "cookbook",
+        "strictness": "thorough",
+        "recipe_mode": True,
+        "custom_dictionary": ["Ragout", "Sous-vide"],
+    }
 
 
 def test_status_for_unknown_run_returns_404() -> None:

@@ -77,9 +77,31 @@ class ResolveResponse(BaseModel):
     resolved: bool
 
 
+class LastConfig(BaseModel):
+    modes: list[CheckMode]
+    book_type: BookType
+    strictness: Strictness
+    recipe_mode: bool
+    custom_dictionary: list[str]
+
+
 class DocState(BaseModel):
     reviewed: bool
     changed: bool
+    # Metadata surfaced from the stored review state so the sidebar can show when the doc was
+    # last reviewed and pre-fill the settings the PM used last time. Never manuscript content (§9).
+    last_reviewed: str | None = None
+    last_config: LastConfig | None = None
+
+
+def to_last_config(config: ReviewConfig) -> LastConfig:
+    return LastConfig(
+        modes=sorted(config.modes),
+        book_type=config.book_type,
+        strictness=config.strictness,
+        recipe_mode=config.recipe_mode,
+        custom_dictionary=sorted(config.custom_dictionary.allowed_terms),
+    )
 
 
 def to_addon_finding(doc_id: str, open_finding: OpenFinding) -> AddonFinding:
@@ -182,4 +204,9 @@ def doc_state(doc_id: str, request: Request) -> DocState:
             detail="Dokument nicht gefunden oder nicht für Sophie freigegeben.",
         ) from error
     changed = current.revision_id != stored.revision_id
-    return DocState(reviewed=True, changed=changed)
+    return DocState(
+        reviewed=True,
+        changed=changed,
+        last_reviewed=stored.updated_at.strftime("%d.%m.%Y"),
+        last_config=to_last_config(stored.config),
+    )
