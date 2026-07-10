@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     # Bearer token gating the add-on findings API. Unset (local dev) leaves it open; set it
     # before the backend is exposed (e.g. behind a tunnel) so the endpoint requires the token.
     addon_token: SecretStr | None = None
+    # Fernet key (urlsafe base64, 32 bytes) encrypting the finding-text columns at rest (§9.2).
+    # Required — findings hold manuscript excerpts and must never sit in the DB as plaintext.
+    # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key())"
+    finding_encryption_key: SecretStr
+    # Stored findings are purged this many days after they were last touched (§9.2 TTL).
+    findings_ttl_days: int = 90
 
     @field_validator("token_budget", mode="before")
     @classmethod

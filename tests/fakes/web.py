@@ -32,6 +32,7 @@ def fake_settings(**overrides: object) -> Settings:
         "database_url": "postgresql+psycopg://test/test",
         "anthropic_api_key": "test-anthropic-key",
         "google_service_account_file": "/tmp/sophie.json",
+        "finding_encryption_key": "hqRJtL1uKChplt01KMGr1zMQqQ9R1xiRa8139J3lo6U=",
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[arg-type]
