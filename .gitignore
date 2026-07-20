@@ -77,3 +77,8 @@ Thumbs.db
 # Temporary credential drop — delete after use
 creds.txt
 creds*.txt
+
+# Unreviewed code recovered from the prod server (uncommitted, never merged —
+# see the "Findings by AI" issue). Kept locally only, never to be committed
+# as-is; must go through a proper PR + data-protection-auditor review first.
+/prod-recovered-uncommitted-code/

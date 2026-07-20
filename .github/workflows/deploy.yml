@@ -1,0 +1,43 @@
+name: Deploy
+
+# Runs only after CI has passed on main. Deploys as the scoped pagedoctor_admin
+# server user (never root) — see issue #21/#22 for why that matters.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up deploy key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PAGEDOCTOR_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.PAGEDOCTOR_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy to production
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes pagedoctor_admin@${{ secrets.PAGEDOCTOR_DEPLOY_HOST }} '
+            set -euo pipefail
+            cd /opt/pagedoctor
+            git fetch origin main
+            git reset --hard origin/main
+            uv sync --frozen --no-dev
+            uv run alembic -c src/pagedoctor/adapters/persistence/alembic.ini upgrade head
+            sudo systemctl restart pagedoctor.service
+            sleep 2
+            curl -sf http://127.0.0.1:8000/healthz
+          '
