@@ -90,7 +90,7 @@ class CommentsOutputAdapter:
 
 
 def consistency_comment_body(report: ConsistencyReport, key: str) -> str:
-    lines = ["[Konsistenzbericht]", ""]
+    lines = [f"[Konsistenzbericht · #{key}]", ""]
     if report.term_variants:
         lines.append("Begriffsvarianten:")
         lines.extend(_variant_line(variant) for variant in report.term_variants)
@@ -104,7 +104,7 @@ def consistency_comment_body(report: ConsistencyReport, key: str) -> str:
             lines.append(f"• {stat.term}: {stat.count}×{chapter}")
     if len(lines) == 2:
         lines.append("Keine Auffälligkeiten gefunden.")
-    lines.extend(("", f"— Sophie Hoffmann  [#{key}]"))
+    lines.extend(("", "— Sophie Hoffmann"))
     return "\n".join(lines)
 
 

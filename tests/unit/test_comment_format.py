@@ -51,11 +51,11 @@ def test_round_trips_with_multiline_reason() -> None:
 def test_parse_ignores_the_consistency_report() -> None:
     body = "\n".join(
         (
-            "[Konsistenzbericht]",
+            "[Konsistenzbericht · #abcdef0123456789]",
             "",
             "Keine Auffälligkeiten gefunden.",
             "",
-            "— Sophie Hoffmann  [#abcdef0123456789]",
+            "— Sophie Hoffmann",
         )
     )
     assert parse_comment_body(body) is None
@@ -66,8 +66,22 @@ def test_parse_ignores_a_plain_human_comment() -> None:
 
 
 def test_parse_requires_the_marker() -> None:
-    body = format_comment_body(_finding(), "0123456789abcdef").replace("  [#0123456789abcdef]", "")
+    body = format_comment_body(_finding(), "0123456789abcdef").replace(" · #0123456789abcdef", "")
     assert parse_comment_body(body) is None
+
+
+def test_parse_still_accepts_the_legacy_layout() -> None:
+    finding = _finding()
+    legacy_body = "\n".join(
+        (
+            "[Korrektorat · FEHLER]",
+            "Original: „Der Hund schläft.“",
+            "Vorschlag: „Der Hund schläft tief.“",
+            "Begründung: Präzisere Formulierung.",
+            "— Sophie Hoffmann  [#0123456789abcdef]",
+        )
+    )
+    assert parse_comment_body(legacy_body) == finding
 
 
 def test_findings_from_comments_keeps_open_findings_in_order() -> None:
