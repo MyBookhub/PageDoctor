@@ -53,6 +53,7 @@ def test_returns_open_findings_as_json() -> None:
     assert body["findings"] == [
         {
             "key": finding_key(DOC_ID, finding),
+            "comment_id": None,
             "quote": "Der Hund schläft.",
             "proposed_change": "Der Hund schläft tief.",
             "reason_de": "Präzisere Formulierung.",
