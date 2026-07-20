@@ -31,6 +31,16 @@ class PostgresRunRepository:
             )
             return [to_domain(row) for row in rows]
 
+    def list_for_doc(self, doc_id: str, limit: int = 20) -> list[ReviewRun]:
+        with self._session_factory() as session:
+            rows = session.scalars(
+                select(ReviewRunRow)
+                .where(ReviewRunRow.doc_id == doc_id)
+                .order_by(ReviewRunRow.started_at.desc())
+                .limit(limit)
+            )
+            return [to_domain(row) for row in rows]
+
 
 def to_row(run: ReviewRun) -> ReviewRunRow:
     return ReviewRunRow(
