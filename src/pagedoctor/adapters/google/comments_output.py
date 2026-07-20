@@ -13,7 +13,11 @@ from pagedoctor.domain.errors import (
 from pagedoctor.domain.models.consistency import ConsistencyReport, TermVariant
 from pagedoctor.domain.models.finding import Finding
 from pagedoctor.domain.models.run import ReviewRun
-from pagedoctor.domain.services.comment_format import MARKER, format_comment_body
+from pagedoctor.domain.services.comment_format import (
+    CONSISTENCY_HEADER,
+    format_comment_body,
+    parse_comment_body,
+)
 from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
 from pagedoctor.logging import get_logger
 
@@ -32,19 +36,26 @@ class CommentsOutputAdapter:
     def write_findings(
         self, run: ReviewRun, findings: Sequence[Finding], report: ConsistencyReport
     ) -> None:
-        already = set(run.posted_finding_keys) | self.posted_keys_in_doc(run.doc_id)
+        # No id is embedded in the posted text (§9 persona voice), so a finding's key is
+        # re-derived from its own quoted content when re-scanning the doc — this makes the
+        # scan itself the source of truth, not a marker string.
+        existing = self.list_comment_contents(run.doc_id)
+        already = set(run.posted_finding_keys) | self.posted_finding_keys(run.doc_id, existing)
         posted = 0
         for finding in findings:
             key = finding_key(run.doc_id, finding)
             if key in already:
                 continue
-            self.create_comment(run.doc_id, format_comment_body(finding, key))
+            self.create_comment(run.doc_id, format_comment_body(finding))
             already.add(key)
             posted += 1
 
         report_key = consistency_report_key(run.doc_id)
-        if report_key not in already:
-            self.create_comment(run.doc_id, consistency_comment_body(report, report_key))
+        consistency_already_posted = report_key in run.posted_finding_keys or any(
+            content.strip().startswith(CONSISTENCY_HEADER) for content in existing
+        )
+        if not consistency_already_posted:
+            self.create_comment(run.doc_id, consistency_comment_body(report))
             posted += 1
 
         logger.info(
@@ -52,8 +63,16 @@ class CommentsOutputAdapter:
             extra={"posted_count": posted, "finding_count": len(findings)},
         )
 
-    def posted_keys_in_doc(self, doc_id: str) -> set[str]:
+    def posted_finding_keys(self, doc_id: str, contents: Sequence[str]) -> set[str]:
         keys: set[str] = set()
+        for content in contents:
+            finding = parse_comment_body(content)
+            if finding is not None:
+                keys.add(finding_key(doc_id, finding))
+        return keys
+
+    def list_comment_contents(self, doc_id: str) -> list[str]:
+        contents: list[str] = []
         page_token: str | None = None
         comments_api = self._drive.comments()
         try:
@@ -65,13 +84,14 @@ class CommentsOutputAdapter:
                         fileId=doc_id, fields=_LIST_FIELDS, pageToken=page_token
                     )
                 response = request.execute()
-                for comment in response.get("comments", []):
-                    content = comment.get("content")
-                    if content:
-                        keys.update(MARKER.findall(content))
+                contents.extend(
+                    content
+                    for comment in response.get("comments", [])
+                    if (content := comment.get("content"))
+                )
                 page_token = response.get("nextPageToken")
                 if not page_token:
-                    return keys
+                    return contents
         except HttpError as error:
             raise self.map_drive_error(doc_id, error) from error
 
@@ -89,8 +109,8 @@ class CommentsOutputAdapter:
         return CommentPostingError(doc_id)
 
 
-def consistency_comment_body(report: ConsistencyReport, key: str) -> str:
-    lines = ["[Konsistenzbericht]", ""]
+def consistency_comment_body(report: ConsistencyReport) -> str:
+    lines = [CONSISTENCY_HEADER, ""]
     if report.term_variants:
         lines.append("Begriffsvarianten:")
         lines.extend(_variant_line(variant) for variant in report.term_variants)
@@ -104,7 +124,7 @@ def consistency_comment_body(report: ConsistencyReport, key: str) -> str:
             lines.append(f"• {stat.term}: {stat.count}×{chapter}")
     if len(lines) == 2:
         lines.append("Keine Auffälligkeiten gefunden.")
-    lines.extend(("", f"— Sophie Hoffmann  [#{key}]"))
+    lines.extend(("", "— Sophie Hoffmann"))
     return "\n".join(lines)
 
 

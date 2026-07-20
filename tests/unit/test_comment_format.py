@@ -23,14 +23,14 @@ def _finding(
 
 def test_format_then_parse_round_trips() -> None:
     finding = _finding()
-    assert parse_comment_body(format_comment_body(finding, "0123456789abcdef")) == finding
+    assert parse_comment_body(format_comment_body(finding)) == finding
 
 
 def test_round_trips_across_categories_and_priorities() -> None:
     for category in Category:
         for priority in Priority:
             finding = _finding(category=category, priority=priority)
-            body = format_comment_body(finding, "abcdef0123456789")
+            body = format_comment_body(finding)
             assert parse_comment_body(body) == finding
 
 
@@ -40,22 +40,31 @@ def test_round_trips_with_umlauts_and_punctuation() -> None:
         proposed="Der Hund schläft – tief und fest!",
         reason="Gedankenstrich statt Komma; Größe und Maß beachten.",
     )
-    assert parse_comment_body(format_comment_body(finding, "0011223344556677")) == finding
+    assert parse_comment_body(format_comment_body(finding)) == finding
 
 
 def test_round_trips_with_multiline_reason() -> None:
     finding = _finding(reason="Erste Zeile.\nZweite Zeile mit Begründung.")
-    assert parse_comment_body(format_comment_body(finding, "1122334455667788")) == finding
+    assert parse_comment_body(format_comment_body(finding)) == finding
+
+
+def test_format_carries_no_visible_id() -> None:
+    body = format_comment_body(_finding())
+    assert "#" not in body
+    assert "[" not in body
+    assert "]" not in body
+    assert body.startswith("Korrektorat · Fehler\n")
+    assert body.endswith("— Sophie Hoffmann")
 
 
 def test_parse_ignores_the_consistency_report() -> None:
     body = "\n".join(
         (
-            "[Konsistenzbericht]",
+            "Konsistenzbericht",
             "",
             "Keine Auffälligkeiten gefunden.",
             "",
-            "— Sophie Hoffmann  [#abcdef0123456789]",
+            "— Sophie Hoffmann",
         )
     )
     assert parse_comment_body(body) is None
@@ -65,17 +74,35 @@ def test_parse_ignores_a_plain_human_comment() -> None:
     assert parse_comment_body("Bitte hier nochmal prüfen, danke!") is None
 
 
-def test_parse_requires_the_marker() -> None:
-    body = format_comment_body(_finding(), "0123456789abcdef").replace("  [#0123456789abcdef]", "")
+def test_parse_requires_the_signature_line() -> None:
+    body = format_comment_body(_finding()).replace("\n— Sophie Hoffmann", "")
     assert parse_comment_body(body) is None
+
+
+def test_parse_still_accepts_the_very_first_layout() -> None:
+    # The layout shipped before comment metadata was consolidated: category/priority in a
+    # bracket, plus a trailing idempotency key after the signature. Real docs may still hold
+    # comments in this shape; findings are re-derived live, never persisted, so it must stay
+    # parseable or those open findings would silently disappear.
+    finding = _finding()
+    legacy_body = "\n".join(
+        (
+            "[Korrektorat · FEHLER]",
+            "Original: „Der Hund schläft.“",
+            "Vorschlag: „Der Hund schläft tief.“",
+            "Begründung: Präzisere Formulierung.",
+            "— Sophie Hoffmann  [#0123456789abcdef]",
+        )
+    )
+    assert parse_comment_body(legacy_body) == finding
 
 
 def test_findings_from_comments_keeps_open_findings_in_order() -> None:
     first = _finding(original="Erstes Zitat.")
     second = _finding(original="Zweites Zitat.", category=Category.EDITING)
     comments = [
-        DocComment(content=format_comment_body(first, "0123456789abcdef"), resolved=False),
-        DocComment(content=format_comment_body(second, "abcdef0123456789"), resolved=False),
+        DocComment(content=format_comment_body(first), resolved=False),
+        DocComment(content=format_comment_body(second), resolved=False),
     ]
     assert findings_from_comments(comments) == [first, second]
 
@@ -83,9 +110,9 @@ def test_findings_from_comments_keeps_open_findings_in_order() -> None:
 def test_findings_from_comments_drops_resolved_and_unparseable() -> None:
     finding = _finding()
     comments = [
-        DocComment(content=format_comment_body(finding, "0123456789abcdef"), resolved=False),
+        DocComment(content=format_comment_body(finding), resolved=False),
         DocComment(
-            content=format_comment_body(_finding(original="Erledigt."), "abcdef0123456789"),
+            content=format_comment_body(_finding(original="Erledigt.")),
             resolved=True,
         ),
         DocComment(content="Nur ein menschlicher Kommentar.", resolved=False),

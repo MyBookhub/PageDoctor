@@ -17,7 +17,6 @@ from pagedoctor.domain.models.config import (
 from pagedoctor.domain.models.finding import Category, Finding, Priority, Suggestion
 from pagedoctor.domain.models.run import ReviewRun, RunStatus
 from pagedoctor.domain.services.comment_format import format_comment_body
-from pagedoctor.domain.services.idempotency import finding_key
 
 OTHER_DOC_ID = "other-doc-id"
 
@@ -156,8 +155,7 @@ def test_run_status_for_wrong_doc_is_not_found() -> None:
 
 def test_resolve_finding_calls_the_resolver_with_the_outcome_and_drops_out_of_findings() -> None:
     finding = _finding()
-    key = finding_key(DOC_ID, finding)
-    comment = DocComment(content=format_comment_body(finding, key), resolved=False, id="comment-1")
+    comment = DocComment(content=format_comment_body(finding), resolved=False, id="comment-1")
     source = FakeCommentsSource({DOC_ID: [comment]})
     resolver = FakeCommentResolver()
     client, _ = _client(resolver=resolver, source=source)

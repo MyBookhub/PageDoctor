@@ -21,7 +21,7 @@ Two parts: a **minimal internal PM web app** (one form, one button, one progress
 
 ### Locked decisions — encode these, do not relitigate
 
-- **Output = comments-only (Drive API) for v1.** A server-side service account **cannot** create native Google Docs suggestions (`SuggestInsertText`/`SuggestDeleteText` do not exist; API comments cannot be anchored to a span — verified, see `docs/PAGEDOCTOR_FEASIBILITY.md`). Sophie posts structured comments and **never mutates the manuscript**. Each comment carries: the **exact quoted original text**, the **proposed change**, a **one-line German reason**, the **category** (proofreading / editing), and a **priority** label `[FEHLER]` / `[EMPFEHLUNG]` / `[HINWEIS]`. Plus one **consistency-report** comment.
+- **Output = comments-only (Drive API) for v1.** A server-side service account **cannot** create native Google Docs suggestions (`SuggestInsertText`/`SuggestDeleteText` do not exist; API comments cannot be anchored to a span — verified, see `docs/PAGEDOCTOR_FEASIBILITY.md`). Sophie posts structured comments and **never mutates the manuscript**. Each comment carries: the **exact quoted original text**, the **proposed change**, a **one-line German reason**, the **category** (proofreading / editing), and a **priority** (Fehler / Empfehlung / Hinweis) — both category and priority as a plain `Kategorie · Priorität` header line, no brackets or ids in the visible text (Sophie reads like an editor, not a script; idempotency re-derives a finding's key from its own quoted content instead of embedding one — see `domain/services/comment_format.py`). Plus one **consistency-report** comment.
 - **The output adapter is the headline architectural seam.** v1 has one implementation (`CommentsOutputAdapter`). A future "Option A" (browser automation producing native suggestions) must slot in behind the same port **without touching** the AI engine, persona, modes, or config. Design for this from line one.
 - **Two check modes**, individually or combined: **Proofreading** (Korrektorat — spelling/grammar/punctuation) and **Editing** (Lektorat — style/consistency/repetition/readability).
 - **Configurable:** book type (cookbook / advice / novel-memoir / children's), strictness (light / standard / thorough), language (German primary), custom dictionary, recipe mode.
@@ -225,7 +225,7 @@ All in `domain/models/`, all Pydantic v2, all `frozen=True` where they are value
 ```python
 class CheckMode(StrEnum):      PROOFREADING; EDITING            # selectable individually or combined
 class Category(StrEnum):       PROOFREADING; EDITING            # which mode produced a finding
-class Priority(StrEnum):       FEHLER; EMPFEHLUNG; HINWEIS       # [FEHLER]/[EMPFEHLUNG]/[HINWEIS]
+class Priority(StrEnum):       FEHLER; EMPFEHLUNG; HINWEIS       # shown as "Fehler"/"Empfehlung"/"Hinweis"
 class BookType(StrEnum):       COOKBOOK; ADVICE; NOVEL_MEMOIR; CHILDRENS
 class Strictness(StrEnum):     LIGHT; STANDARD; THOROUGH
 class RunStatus(StrEnum):      PENDING; RUNNING; WRITING; DONE; INCOMPLETE; FAILED

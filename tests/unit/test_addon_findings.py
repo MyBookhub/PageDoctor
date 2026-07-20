@@ -27,9 +27,7 @@ def _finding(
 
 
 def _comment(finding: Finding, resolved: bool = False) -> DocComment:
-    return DocComment(
-        content=format_comment_body(finding, finding_key(DOC_ID, finding)), resolved=resolved
-    )
+    return DocComment(content=format_comment_body(finding), resolved=resolved)
 
 
 def _client(source: FakeCommentsSource, *, token: str | None = None) -> TestClient:
