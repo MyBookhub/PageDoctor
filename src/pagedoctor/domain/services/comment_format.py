@@ -8,17 +8,21 @@ from pagedoctor.domain.services.idempotency import KEY_LENGTH
 _CATEGORY_LABELS = {Category.PROOFREADING: "Korrektorat", Category.EDITING: "Lektorat"}
 _LABEL_TO_CATEGORY = {label: category for category, label in _CATEGORY_LABELS.items()}
 
-_KEY_RE = rf"[0-9a-f]{{{KEY_LENGTH}}}"
+_PRIORITY_LABELS = {
+    Priority.FEHLER: "Fehler",
+    Priority.EMPFEHLUNG: "Empfehlung",
+    Priority.HINWEIS: "Hinweis",
+}
+_LABEL_TO_PRIORITY = {label: priority for priority, label in _PRIORITY_LABELS.items()}
 
-# Matches the idempotency key wherever it appears in a comment (header or, in the legacy
-# layout, trailing after the signature) — used to scan already-posted keys (CLAUDE.md §10).
-MARKER = re.compile(rf"#({_KEY_RE})")
+CONSISTENCY_HEADER = "Konsistenzbericht"
 
-# Current layout: all structured metadata (category, priority, id) lives in the header
-# bracket; the signature line is plain, human-readable text.
+# No machine-readable id is embedded anywhere in the visible text (Sophie should read like an
+# editor, not a script) — idempotency instead re-derives a finding's key from its own quoted
+# content (see idempotency.finding_key), so this parser only needs to recover the fields a
+# human already sees.
 _FINDING_COMMENT = re.compile(
-    r"\[(?P<label>Korrektorat|Lektorat) · (?P<priority>FEHLER|EMPFEHLUNG|HINWEIS) · "
-    rf"#(?P<key>{_KEY_RE})\]\n"
+    r"(?P<label>Korrektorat|Lektorat) · (?P<priority_label>Fehler|Empfehlung|Hinweis)\n"
     r"Original: „(?P<original>.*?)“\n"
     r"Vorschlag: „(?P<proposed>.*?)“\n"
     r"Begründung: (?P<reason>.*?)\n"
@@ -26,25 +30,28 @@ _FINDING_COMMENT = re.compile(
     re.DOTALL,
 )
 
-# Legacy layout (id trailing after the signature instead of in the header) — findings are
-# always re-derived live from Drive comments, never persisted, so comments already posted
-# under the old layout must stay parseable or they'd silently vanish from open findings.
+# The very first layout ever shipped (category/priority + a trailing hash key in brackets).
+# Findings are always re-derived live from Drive comments, never persisted, so comments
+# already posted under this layout must stay parseable or they'd silently vanish from open
+# findings and could get re-posted as duplicates on the next review.
+_KEY_RE = rf"[0-9a-f]{{{KEY_LENGTH}}}"
 _FINDING_COMMENT_LEGACY = re.compile(
     r"\[(?P<label>Korrektorat|Lektorat) · (?P<priority>FEHLER|EMPFEHLUNG|HINWEIS)\]\n"
     r"Original: „(?P<original>.*?)“\n"
     r"Vorschlag: „(?P<proposed>.*?)“\n"
     r"Begründung: (?P<reason>.*?)\n"
-    rf"— Sophie Hoffmann  \[#(?P<key>{_KEY_RE})\]",
+    rf"— Sophie Hoffmann  \[#{_KEY_RE}\]",
     re.DOTALL,
 )
 
 
-def format_comment_body(finding: Finding, key: str) -> str:
+def format_comment_body(finding: Finding) -> str:
     suggestion = finding.suggestion
-    label = _CATEGORY_LABELS[finding.category]
+    category_label = _CATEGORY_LABELS[finding.category]
+    priority_label = _PRIORITY_LABELS[finding.priority]
     return "\n".join(
         (
-            f"[{label} · {finding.priority.value} · #{key}]",
+            f"{category_label} · {priority_label}",
             f"Original: „{suggestion.original_text}“",
             f"Vorschlag: „{suggestion.proposed_change}“",
             f"Begründung: {suggestion.reason_de}",
@@ -54,18 +61,29 @@ def format_comment_body(finding: Finding, key: str) -> str:
 
 
 def parse_comment_body(content: str) -> Finding | None:
-    match = _FINDING_COMMENT.search(content) or _FINDING_COMMENT_LEGACY.search(content)
-    if match is None:
-        return None
-    return Finding(
-        suggestion=Suggestion(
-            original_text=match["original"],
-            proposed_change=match["proposed"],
-            reason_de=match["reason"],
-        ),
-        category=_LABEL_TO_CATEGORY[match["label"]],
-        priority=Priority(match["priority"]),
-    )
+    match = _FINDING_COMMENT.search(content)
+    if match is not None:
+        return Finding(
+            suggestion=Suggestion(
+                original_text=match["original"],
+                proposed_change=match["proposed"],
+                reason_de=match["reason"],
+            ),
+            category=_LABEL_TO_CATEGORY[match["label"]],
+            priority=_LABEL_TO_PRIORITY[match["priority_label"]],
+        )
+    legacy_match = _FINDING_COMMENT_LEGACY.search(content)
+    if legacy_match is not None:
+        return Finding(
+            suggestion=Suggestion(
+                original_text=legacy_match["original"],
+                proposed_change=legacy_match["proposed"],
+                reason_de=legacy_match["reason"],
+            ),
+            category=_LABEL_TO_CATEGORY[legacy_match["label"]],
+            priority=Priority(legacy_match["priority"]),
+        )
+    return None
 
 
 def findings_from_comments(comments: Sequence[DocComment]) -> list[Finding]:

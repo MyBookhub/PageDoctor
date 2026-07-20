@@ -112,11 +112,12 @@ def test_comment_carries_all_required_fields() -> None:
 
     body = _created_bodies(client)[0]
     assert "Korrektorat" in body
-    assert "FEHLER" in body
+    assert "Fehler" in body
     assert "Der Hund schläft." in body
     assert "Der Hund schläft tief." in body
     assert "Präzisere Formulierung." in body
-    assert f"#{finding_key(DOC_ID, finding)}]" in body
+    assert "#" not in body
+    assert finding_key(DOC_ID, finding) not in body
 
 
 def test_editing_finding_labelled_lektorat() -> None:
@@ -136,7 +137,7 @@ def test_consistency_report_posts_as_single_comment() -> None:
 
     bodies = _created_bodies(client)
     assert len(bodies) == 1
-    assert "[Konsistenzbericht ·" in bodies[0]
+    assert bodies[0].startswith("Konsistenzbericht\n")
     assert "Basilikum" in bodies[0]
     assert "lecker" in bodies[0]
 
