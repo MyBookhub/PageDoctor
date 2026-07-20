@@ -87,12 +87,12 @@ def _http_error(status: int) -> HttpError:
     return HttpError(httplib2.Response({"status": str(status)}), b"{}")
 
 
-def test_posts_one_comment_per_finding_plus_the_report() -> None:
+def test_posts_one_comment_per_finding() -> None:
     client = _service()
 
     _adapter(client).write_findings(_run(), [_finding("a"), _finding("b")], _report())
 
-    assert client.comments.return_value.create.call_count == 3
+    assert client.comments.return_value.create.call_count == 2
 
 
 def test_never_edits_the_manuscript() -> None:
@@ -130,16 +130,14 @@ def test_editing_finding_labelled_lektorat() -> None:
     assert "Lektorat" in _created_bodies(client)[0]
 
 
-def test_consistency_report_posts_as_single_comment() -> None:
+def test_consistency_report_is_not_posted_yet() -> None:
+    # Paused for this version (issue #29) — the analysis still runs (accepted as `report`),
+    # it just isn't written to the doc while the delivery UX is reconsidered.
     client = _service()
 
     _adapter(client).write_findings(_run(), [], _report())
 
-    bodies = _created_bodies(client)
-    assert len(bodies) == 1
-    assert bodies[0].startswith("Konsistenzbericht\n")
-    assert "Basilikum" in bodies[0]
-    assert "lecker" in bodies[0]
+    assert client.comments.return_value.create.call_count == 0
 
 
 def test_re_posting_the_same_run_creates_no_duplicates() -> None:
@@ -176,9 +174,7 @@ def test_findings_in_the_run_checkpoint_are_skipped() -> None:
         _run(posted=frozenset({finding_key(DOC_ID, finding)})), [finding], _report(empty=True)
     )
 
-    bodies = _created_bodies(client)
-    assert all("Konsistenzbericht" in body for body in bodies)
-    assert len(bodies) == 1
+    assert client.comments.return_value.create.call_count == 0
 
 
 def test_duplicate_findings_within_one_call_post_once() -> None:

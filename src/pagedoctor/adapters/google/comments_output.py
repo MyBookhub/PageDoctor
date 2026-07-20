@@ -18,7 +18,7 @@ from pagedoctor.domain.services.comment_format import (
     format_comment_body,
     parse_comment_body,
 )
-from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
+from pagedoctor.domain.services.idempotency import finding_key
 from pagedoctor.logging import get_logger
 
 if TYPE_CHECKING:
@@ -39,6 +39,11 @@ class CommentsOutputAdapter:
         # No id is embedded in the posted text (§9 persona voice), so a finding's key is
         # re-derived from its own quoted content when re-scanning the doc — this makes the
         # scan itself the source of truth, not a marker string.
+        #
+        # The consistency-report comment is paused for this version (see issue #29) — the
+        # analysis (`report`) still runs, it just isn't posted yet, pending a UX decision on
+        # how it should reach the creator. `report`/`consistency_comment_body` are kept ready
+        # to wire back in rather than deleted.
         existing = self.list_comment_contents(run.doc_id)
         already = set(run.posted_finding_keys) | self.posted_finding_keys(run.doc_id, existing)
         posted = 0
@@ -48,14 +53,6 @@ class CommentsOutputAdapter:
                 continue
             self.create_comment(run.doc_id, format_comment_body(finding))
             already.add(key)
-            posted += 1
-
-        report_key = consistency_report_key(run.doc_id)
-        consistency_already_posted = report_key in run.posted_finding_keys or any(
-            content.strip().startswith(CONSISTENCY_HEADER) for content in existing
-        )
-        if not consistency_already_posted:
-            self.create_comment(run.doc_id, consistency_comment_body(report))
             posted += 1
 
         logger.info(
