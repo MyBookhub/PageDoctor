@@ -8,12 +8,14 @@ from sqlalchemy.orm import sessionmaker
 
 from pagedoctor.adapters.clock import SystemClock
 from pagedoctor.adapters.google.auth import build_docs_service, build_drive_service
+from pagedoctor.adapters.google.comment_resolver import DriveCommentResolver
 from pagedoctor.adapters.google.comments_output import CommentsOutputAdapter
 from pagedoctor.adapters.google.comments_source import GoogleCommentsSource
 from pagedoctor.adapters.google.docs_source import GoogleDocsSource
 from pagedoctor.adapters.llm.anthropic_provider import AnthropicLlmProvider
 from pagedoctor.adapters.persistence.run_repository import PostgresRunRepository
 from pagedoctor.config import Settings
+from pagedoctor.domain.ports.comment_resolver import CommentResolverPort
 from pagedoctor.domain.ports.comments_source import CommentsSourcePort
 from pagedoctor.domain.ports.run_repository import RunRepositoryPort
 from pagedoctor.domain.services.engine import EditingEngine
@@ -26,6 +28,7 @@ class Container:
     repository: RunRepositoryPort
     build_orchestrator: Callable[[int | None], ReviewOrchestrator]
     build_comments_source: Callable[[], CommentsSourcePort]
+    build_comment_resolver: Callable[[], CommentResolverPort]
 
 
 def get_container(request: Request) -> Container:
@@ -60,9 +63,13 @@ def build_container(settings: Settings) -> Container:
     def build_comments_source() -> CommentsSourcePort:
         return GoogleCommentsSource(build_drive_service(settings))
 
+    def build_comment_resolver() -> CommentResolverPort:
+        return DriveCommentResolver(build_drive_service(settings))
+
     return Container(
         settings=settings,
         repository=repository,
         build_orchestrator=build_orchestrator,
         build_comments_source=build_comments_source,
+        build_comment_resolver=build_comment_resolver,
     )

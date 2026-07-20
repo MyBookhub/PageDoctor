@@ -6,3 +6,4 @@ class DocComment(BaseModel):
 
     content: str
     resolved: bool
+    id: str | None = None

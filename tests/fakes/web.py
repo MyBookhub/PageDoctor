@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from fakes.clock import FakeClock
+from fakes.comment_resolver import FakeCommentResolver
 from fakes.comments_source import FakeCommentsSource
 from fakes.document_source import FakeDocumentSource
 from fakes.llm import FakeLlmProvider
@@ -16,6 +17,7 @@ from pagedoctor.domain.models.finding import (
     Priority,
     Suggestion,
 )
+from pagedoctor.domain.ports.comment_resolver import CommentResolverPort
 from pagedoctor.domain.ports.comments_source import CommentsSourcePort
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
@@ -52,6 +54,7 @@ class FakeWeb:
     repository: InMemoryRunRepository
     output: FakeOutputPort
     provider: FakeLlmProvider
+    resolver: FakeCommentResolver
 
 
 def build_fake_web(
@@ -59,11 +62,13 @@ def build_fake_web(
     provider: FakeLlmProvider | None = None,
     settings: Settings | None = None,
     comments_source: CommentsSourcePort | None = None,
+    comment_resolver: FakeCommentResolver | None = None,
 ) -> FakeWeb:
     repository = InMemoryRunRepository()
     shared_output = output or FakeOutputPort()
     shared_provider = provider or _default_provider()
     shared_comments = comments_source or FakeCommentsSource()
+    shared_resolver = comment_resolver or FakeCommentResolver()
     document = SourceDocument(
         doc_id=DOC_ID, text=DOC_TEXT, index_map=IndexMap(plain_text_length=len(DOC_TEXT))
     )
@@ -81,10 +86,14 @@ def build_fake_web(
     def build_comments_source() -> CommentsSourcePort:
         return shared_comments
 
+    def build_comment_resolver() -> CommentResolverPort:
+        return shared_resolver
+
     container = Container(
         settings=settings or fake_settings(),
         repository=repository,
         build_orchestrator=build_orchestrator,
         build_comments_source=build_comments_source,
+        build_comment_resolver=build_comment_resolver,
     )
-    return FakeWeb(container, repository, shared_output, shared_provider)
+    return FakeWeb(container, repository, shared_output, shared_provider, shared_resolver)

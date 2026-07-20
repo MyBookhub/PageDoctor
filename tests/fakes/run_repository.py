@@ -27,3 +27,8 @@ class InMemoryRunRepository:
             self._runs.values(), key=lambda run: run.started_at or _EPOCH, reverse=True
         )
         return ordered[:limit]
+
+    def list_for_doc(self, doc_id: str, limit: int = 20) -> list[ReviewRun]:
+        matching = [run for run in self._runs.values() if run.doc_id == doc_id]
+        ordered = sorted(matching, key=lambda run: run.started_at or _EPOCH, reverse=True)
+        return ordered[:limit]

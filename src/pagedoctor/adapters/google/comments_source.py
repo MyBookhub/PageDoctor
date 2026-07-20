@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_LIST_FIELDS = "comments(content,resolved),nextPageToken"
+_LIST_FIELDS = "comments(id,content,resolved),nextPageToken"
 
 
 class GoogleCommentsSource:
@@ -40,7 +40,11 @@ class GoogleCommentsSource:
                 content = comment.get("content")
                 if content:
                     comments.append(
-                        DocComment(content=content, resolved=bool(comment.get("resolved", False)))
+                        DocComment(
+                            content=content,
+                            resolved=bool(comment.get("resolved", False)),
+                            id=comment.get("id"),
+                        )
                     )
             page_token = response.get("nextPageToken")
             if not page_token:
