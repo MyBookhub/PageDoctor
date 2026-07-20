@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      :root {
+        --coral: #e8725a;
+        --deep-coral: #c95a44;
+        --warm-white: #faf8f6;
+        --cream: #fff9f5;
+        --black: #1a1a2e;
+        --grey: #9e9eb0;
+        --line: #ece6e1;
+      }
+      html,
+      body {
+        overflow-x: hidden;
+        max-width: 100%;
+      }
+      body {
+        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        font-size: 13px;
+        color: var(--black);
+        background: var(--warm-white);
+        margin: 0;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 14px;
+        font-weight: 700;
+        margin: 0 0 10px;
+      }
+      button {
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-weight: 500;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        white-space: nowrap;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      button svg {
+        width: 14px;
+        height: 14px;
+        flex: none;
+      }
+      .primary {
+        background: var(--coral);
+        color: #fff;
+      }
+      .primary:hover:not(:disabled) {
+        background: var(--deep-coral);
+      }
+      .ghost {
+        background: transparent;
+        color: var(--deep-coral);
+        border: 1px solid var(--line);
+      }
+      .ghost:hover:not(:disabled) {
+        background: #fff;
+        border-color: var(--coral);
+      }
+      .settings {
+        background: var(--cream);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+      .settings label {
+        display: block;
+        font-size: 11px;
+        color: var(--grey);
+        margin: 6px 0 2px;
+      }
+      select,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        font-family: inherit;
+        font-size: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 5px;
+        background: #fff;
+      }
+      .checks {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 12px;
+        margin-top: 4px;
+      }
+      .checks label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--black);
+        font-size: 12px;
+        margin: 0;
+      }
+      .run {
+        width: 100%;
+        margin-top: 10px;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+        margin-top: 4px;
+      }
+      #status {
+        color: var(--grey);
+        font-size: 12px;
+        margin: 8px 0;
+        min-height: 16px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .meta {
+        color: var(--grey);
+        font-size: 11px;
+        margin: 2px 0 8px;
+      }
+      .card {
+        background: var(--cream);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 8px;
+      }
+      .tags {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 1px 8px;
+        border-radius: 999px;
+        color: #fff;
+      }
+      .cat {
+        font-size: 11px;
+        color: var(--grey);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 1px 8px;
+      }
+      .FEHLER {
+        background: var(--deep-coral);
+      }
+      .EMPFEHLUNG {
+        background: var(--coral);
+      }
+      .HINWEIS {
+        background: var(--grey);
+      }
+      .original {
+        color: var(--grey);
+        text-decoration: line-through;
+        margin: 6px 0 2px;
+      }
+      .proposed {
+        color: var(--black);
+        font-weight: 500;
+      }
+      .reason {
+        color: var(--grey);
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .actions button {
+        flex: 1 1 auto;
+        padding: 6px 8px;
+      }
+      .banner {
+        display: none;
+        background: #fff3ef;
+        border: 1px solid var(--coral);
+        color: var(--deep-coral);
+        border-radius: 10px;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        font-size: 12px;
+      }
+      .spinner {
+        width: 13px;
+        height: 13px;
+        border: 2px solid var(--line);
+        border-top-color: var(--coral);
+        border-radius: 50%;
+        display: inline-block;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PageDoctor</h1>
+
+    <div class="settings">
+      <label for="book">Buchtyp</label>
+      <select id="book">
+        <option value="cookbook">Kochbuch</option>
+        <option value="advice">Ratgeber</option>
+        <option value="novel_memoir">Roman / Memoir</option>
+        <option value="childrens">Kinderbuch</option>
+      </select>
+
+      <label for="strict">Strenge</label>
+      <select id="strict">
+        <option value="light">Leicht</option>
+        <option value="standard" selected>Standard</option>
+        <option value="thorough">Gründlich</option>
+      </select>
+
+      <label>Prüfmodi</label>
+      <div class="checks">
+        <label><input type="checkbox" id="m-proof" checked /> Korrektorat</label>
+        <label><input type="checkbox" id="m-edit" checked /> Lektorat</label>
+        <label><input type="checkbox" id="recipe" /> Rezeptmodus</label>
+      </div>
+
+      <label for="dict">Eigenes Wörterbuch (kommagetrennt)</label>
+      <textarea id="dict" rows="2"></textarea>
+
+      <button class="primary run" id="run" onclick="startReview()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" />
+          <path d="M19 14l.7 1.9L21.5 16.5l-1.8.6L19 19l-.7-1.9L16.5 16.5l1.8-.6z" />
+        </svg>
+        Review starten
+      </button>
+    </div>
+
+    <div id="banner" class="banner">
+      Das Dokument wurde seit der letzten Prüfung geändert.
+      <button class="primary" style="margin-top: 6px" onclick="startReview()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" />
+        </svg>
+        Geänderte Abschnitte prüfen
+      </button>
+    </div>
+
+    <div class="toolbar">
+      <strong style="font-size: 13px">Sophies Anmerkungen</strong>
+      <button class="ghost" onclick="load()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" />
+        </svg>
+        Aktualisieren
+      </button>
+    </div>
+    <div id="meta" class="meta"></div>
+    <div id="status">Lädt…</div>
+    <div id="list"></div>
+
+    <script>
+      var ICONS = {
+        jump:
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
+        apply:
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+        dismiss:
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+      };
+      var CATEGORY_LABELS = { proofreading: 'Korrektorat', editing: 'Lektorat' };
+      var configPrefilled = false;
+
+      function applyConfig(cfg) {
+        // Pre-fill once from the last review's stored settings; never overwrite a selection the
+        // PM has already made in this session (a later Aktualisieren must not reset the form).
+        if (!cfg || configPrefilled) return;
+        configPrefilled = true;
+        document.getElementById('book').value = cfg.book_type;
+        document.getElementById('strict').value = cfg.strictness;
+        var modes = cfg.modes || [];
+        document.getElementById('m-proof').checked = modes.indexOf('proofreading') >= 0;
+        document.getElementById('m-edit').checked = modes.indexOf('editing') >= 0;
+        document.getElementById('recipe').checked = !!cfg.recipe_mode;
+        document.getElementById('dict').value = (cfg.custom_dictionary || []).join(', ');
+      }
+
+      function setStatus(message, busy) {
+        var status = document.getElementById('status');
+        status.textContent = '';
+        if (busy) {
+          var spinner = document.createElement('span');
+          spinner.className = 'spinner';
+          status.appendChild(spinner);
+        }
+        status.appendChild(document.createTextNode(message));
+      }
+
+      function onError(e) {
+        document.getElementById('run').disabled = false;
+        setStatus(e.message);
+      }
+
+      function collectConfig() {
+        var modes = [];
+        if (document.getElementById('m-proof').checked) modes.push('proofreading');
+        if (document.getElementById('m-edit').checked) modes.push('editing');
+        var dict = document
+          .getElementById('dict')
+          .value.split(/[,\n]/)
+          .map(function (s) {
+            return s.trim();
+          })
+          .filter(Boolean);
+        return {
+          modes: modes,
+          book_type: document.getElementById('book').value,
+          strictness: document.getElementById('strict').value,
+          recipe_mode: document.getElementById('recipe').checked,
+          custom_dictionary: dict,
+        };
+      }
+
+      function startReview() {
+        var config = collectConfig();
+        if (!config.modes.length) {
+          setStatus('Bitte mindestens einen Prüfmodus wählen.');
+          return;
+        }
+        document.getElementById('run').disabled = true;
+        setStatus('Review wird gestartet…', true);
+        google.script.run
+          .withFailureHandler(onError)
+          .withSuccessHandler(function (started) {
+            poll(started.run_id);
+          })
+          .startReview(config);
+      }
+
+      function poll(runId) {
+        google.script.run
+          .withFailureHandler(onError)
+          .withSuccessHandler(function (p) {
+            if (!p.done) {
+              setStatus('Wird geprüft… (' + p.status + ')', true);
+              window.setTimeout(function () {
+                poll(runId);
+              }, 2500);
+              return;
+            }
+            document.getElementById('run').disabled = false;
+            if (p.status === 'failed') {
+              setStatus('Review fehlgeschlagen.');
+            } else {
+              load();
+            }
+          })
+          .reviewStatus(runId);
+      }
+
+      function load() {
+        setStatus('Lädt…', true);
+        document.getElementById('list').innerHTML = '';
+        checkState();
+        google.script.run.withFailureHandler(onError).withSuccessHandler(render).getFindings();
+      }
+
+      function checkState() {
+        google.script.run
+          .withSuccessHandler(function (s) {
+            document.getElementById('banner').style.display = s && s.changed ? 'block' : 'none';
+            document.getElementById('meta').textContent =
+              s && s.last_reviewed ? 'Zuletzt geprüft: ' + s.last_reviewed : '';
+            applyConfig(s && s.last_config);
+          })
+          .getState();
+      }
+
+      function render(data) {
+        var findings = (data && data.findings) || [];
+        var list = document.getElementById('list');
+        if (!findings.length) {
+          setStatus('Keine offenen Anmerkungen.');
+          return;
+        }
+        var counts = { FEHLER: 0, EMPFEHLUNG: 0, HINWEIS: 0 };
+        findings.forEach(function (finding) {
+          counts[finding.priority] = (counts[finding.priority] || 0) + 1;
+        });
+        setStatus(
+          findings.length +
+            ' offen · ' +
+            counts.FEHLER +
+            ' Fehler · ' +
+            counts.EMPFEHLUNG +
+            ' Empfehlung · ' +
+            counts.HINWEIS +
+            ' Hinweis'
+        );
+        findings.forEach(function (finding) {
+          list.appendChild(card(finding));
+        });
+      }
+
+      function card(finding) {
+        var el = document.createElement('div');
+        el.className = 'card';
+        el.innerHTML =
+          '<div class="tags"><span class="badge"></span><span class="cat"></span></div>' +
+          '<div class="original"></div>' +
+          '<div class="proposed"></div>' +
+          '<div class="reason"></div>' +
+          '<div class="actions">' +
+          '<button class="primary jump">' + ICONS.jump + 'Springen</button>' +
+          '<button class="ghost apply">' + ICONS.apply + 'Übernehmen</button>' +
+          '<button class="ghost dismiss">' + ICONS.dismiss + 'Verwerfen</button>' +
+          '</div>';
+
+        var badge = el.querySelector('.badge');
+        badge.textContent = finding.priority;
+        badge.classList.add(finding.priority);
+        el.querySelector('.cat').textContent =
+          CATEGORY_LABELS[finding.category] || finding.category;
+        el.querySelector('.original').textContent = finding.quote;
+        el.querySelector('.proposed').textContent = finding.proposed_change;
+        el.querySelector('.reason').textContent = finding.reason_de;
+
+        el.querySelector('.jump').onclick = function () {
+          jump(finding);
+        };
+        el.querySelector('.apply').onclick = function () {
+          apply(finding, el);
+        };
+        el.querySelector('.dismiss').onclick = function () {
+          dismiss(finding, el);
+        };
+        return el;
+      }
+
+      function busyCard(el, on) {
+        var buttons = el.querySelectorAll('button');
+        for (var i = 0; i < buttons.length; i++) {
+          buttons[i].disabled = on;
+        }
+      }
+
+      function jump(finding) {
+        google.script.run
+          .withFailureHandler(onError)
+          .withSuccessHandler(function (ok) {
+            if (!ok) setStatus('Textstelle nicht gefunden: „' + finding.quote + '“');
+          })
+          .jumpToQuote(finding.quote);
+      }
+
+      function apply(finding, el) {
+        busyCard(el, true);
+        google.script.run
+          .withFailureHandler(function (e) {
+            busyCard(el, false);
+            onError(e);
+          })
+          .withSuccessHandler(function (ok) {
+            if (ok) el.remove();
+            else {
+              busyCard(el, false);
+              setStatus('Textstelle nicht gefunden: „' + finding.quote + '“');
+            }
+          })
+          .applyFix(finding.quote, finding.proposed_change, finding.comment_id);
+      }
+
+      function dismiss(finding, el) {
+        busyCard(el, true);
+        google.script.run
+          .withFailureHandler(function (e) {
+            busyCard(el, false);
+            onError(e);
+          })
+          .withSuccessHandler(function () {
+            el.remove();
+          })
+          .dismissFinding(finding.comment_id);
+      }
+
+      load();
+    </script>
+  </body>
+</html>
