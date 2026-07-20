@@ -1,4 +1,14 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc)",
+      "Bash(source /Users/tillmanndurth/coding_projects/PageDoctor/.venv/bin/activate)",
+      "Bash(uv run pytest*)",
+      "Bash(uv run ruff check*)",
+      "Bash(uv run mypy*)",
+      "Bash(uv run ruff format --check*)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
