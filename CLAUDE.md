@@ -21,8 +21,8 @@ Two parts: a **minimal internal PM web app** (one form, one button, one progress
 
 ### Locked decisions — encode these, do not relitigate
 
-- **Output = comments-only (Drive API) for v1.** A server-side service account **cannot** create native Google Docs suggestions (`SuggestInsertText`/`SuggestDeleteText` do not exist; API comments cannot be anchored to a span — verified, see `docs/PAGEDOCTOR_FEASIBILITY.md`). Sophie posts structured comments and **never mutates the manuscript**. Each posted comment carries only the **exact quoted original text**, the **proposed change**, and a **one-line German reason** — no header, no label, no id, no signature in the visible text (Sophie reads like an editor, not a script). **Category and priority stay internal**: the LLM still assigns them per finding (used for strictness gating and future filtering) but they are never rendered into the comment text, since there is no channel to carry them that isn't visible to the creator. Idempotency re-derives a finding's key from its own quoted content (original text + proposed change only, not category — see `domain/services/comment_format.py` and `domain/services/idempotency.py`). Plus one **consistency-report** comment — **paused for this version** (issue #29): the whole-book consistency pass still runs on every review, it just isn't posted to the doc yet, pending a UX decision on how it should reach the creator.
-- **The output adapter is the headline architectural seam.** v1 has one implementation (`CommentsOutputAdapter`). A future "Option A" (browser automation producing native suggestions) must slot in behind the same port **without touching** the AI engine, persona, modes, or config. Design for this from line one.
+- **Output = anchored comments in a versioned copy (DOCX round-trip), issue #31.** A server-side service account **cannot** create native Google Docs suggestions, and Drive API comments on a Docs file render **unanchored** ("Originalinhalt gelöscht") — both verified, see `docs/PAGEDOCTOR_FEASIBILITY.md` and issue #31. Anchored findings are a **MUST** (PM decision 2026-07-21), so the wired adapter (`DocxCopyOutputAdapter`) goes through Google's Office interop instead: `files.export` the source doc as DOCX → inject findings as OOXML comments (author string "Sophie Hoffmann", no service-account email visible) → `files.create` with conversion into a fresh **`<Name>_lektoriert_vN`** copy in the fixed Lektorat folder (`Settings.lektorat_folder_id`). Imported DOCX comments become **natively anchored** Docs comments. **The source manuscript is never touched** — a bad conversion only ever affects a disposable copy. Each comment carries only the **exact quoted original text**, the **proposed change**, and a **one-line German reason** — no header, no label, no id, no signature (Sophie reads like an editor, not a script). **Category and priority stay internal** (LLM-assigned, used for strictness gating, never rendered). Idempotency: the copy is one atomic `files.create` stamped with `appProperties.pagedoctor_run`; a retried/resumed run finds its copy and never duplicates it. Finding keys re-derive from quoted content only (`domain/services/idempotency.py`). The **consistency-report** comment stays **paused** (issue #29). `CommentsOutputAdapter` (unanchored Drive comments into the source doc) stays in the tree for a **manual DI swap** if the copy path ever needs reverting — there is no automatic runtime fallback.
+- **The output adapter is the headline architectural seam.** v1 wires `DocxCopyOutputAdapter`; `CommentsOutputAdapter` stays available for a manual swap. A future "Option A" (browser automation producing native suggestions) must slot in behind the same port **without touching** the AI engine, persona, modes, or config. Design for this from line one.
 - **Two check modes**, individually or combined: **Proofreading** (Korrektorat — spelling/grammar/punctuation) and **Editing** (Lektorat — style/consistency/repetition/readability).
 - **Configurable:** book type (cookbook / advice / novel-memoir / children's), strictness (light / standard / thorough), language (German primary), custom dictionary, recipe mode.
 - **AI engine:** chunk-wise over long manuscripts, with a **whole-book consistency pass** (names, terms, spelling variants, repetition stats). Findings map to exact text via **quote-and-locate** — never trust model-reported character offsets.
@@ -51,7 +51,7 @@ flowchart TD
 
     dsp --> gds["GoogleDocsSource<br/>Docs API documents.get"]
     llp --> alp["AnthropicLlmProvider<br/>Claude, messages.parse"]
-    op --> co["CommentsOutputAdapter<br/>v1 — Drive comments"]
+    op --> co["DocxCopyOutputAdapter<br/>v1 — anchored comments in a versioned copy"]
     op -. "Option A — later, out of v1 scope" .-> nso["NativeSuggestionsOutput"]
     rrp --> prr["PostgresRunRepository"]
 ```
@@ -62,7 +62,7 @@ flowchart TD
 |---|---|---|
 | `DocumentSourcePort` | Read the document's plain text **and** an index map (so spans can be translated to Docs API ranges later). Re-read fresh on every run — never reuse stale indices (a second pass may run after creator edits). | `GoogleDocsSource` (Docs API `documents.get`) |
 | `LlmProviderPort` | Given a chunk + config, return **typed findings** (validated models, not dicts). | `AnthropicLlmProvider` |
-| `OutputPort` (headline seam) | Write findings + consistency report to the doc. **The swappable seam.** | `CommentsOutputAdapter` (Drive `comments.create`) |
+| `OutputPort` (headline seam) | Write findings + consistency report out. **The swappable seam.** Returns an `OutputResult` (the produced copy's doc id, if any). | `DocxCopyOutputAdapter` (export → OOXML comments → versioned copy); `CommentsOutputAdapter` kept for a manual swap |
 | `RunRepositoryPort` | Persist/read **run metadata only** (doc id, timestamp, mode, settings, status, counts). Never manuscript or finding content. | `PostgresRunRepository` |
 
 The **AI engine, Sophie persona, the two modes, configuration, and workflow are identical regardless of which `OutputPort` adapter is wired in.** Build them once. When Option A lands, it is a new `OutputPort` implementation and a DI change — nothing in `domain/` moves.
@@ -117,7 +117,8 @@ src/pagedoctor/
   adapters/                    # everything external — imports live HERE, never in domain/
     google/
       docs_source.py           # GoogleDocsSource    : DocumentSourcePort
-      comments_output.py       # CommentsOutputAdapter : OutputPort  (v1)
+      docx_copy_output.py      # DocxCopyOutputAdapter : OutputPort  (v1 — anchored copy, #31)
+      comments_output.py       # CommentsOutputAdapter : OutputPort  (fallback)
       auth.py                  # service-account credentials, single-doc scope
     llm/
       anthropic_provider.py    # AnthropicLlmProvider : LlmProviderPort
@@ -303,11 +304,11 @@ class ReviewRun(BaseModel):                    # METADATA ONLY — never holds m
 
 ## 8. Google integration constraints
 
-- **Comments-only, v1.** Sophie writes via the **Drive API** `comments.create`. She **never** calls `documents.batchUpdate` to edit text. Reads use the **Docs API** `documents.get` (text + structure + index map).
-- **Service account**, not a login account — sidesteps the Docs-UI-automation ToS question entirely until/unless Option A is built. Comments + read access only.
-- **Minimal scope.** Access the **single target doc** only (it is shared as editor with the Sophie service account per-run) — **never** request whole-Drive scopes.
-- **Comments are unanchored** (API limitation): they land in the comment stream, not pinned to the span. That is why every comment must carry the **exact quoted original text** so the creator can locate the spot. Category is conveyed **in the comment text** (a tag/prefix) — there are no suggestion colors in v1.
-- **Second pass re-reads fresh.** The creator may have edited the doc between passes; all indices shift. Never reuse stale positions. A second pass should also avoid re-posting comments the creator already resolved/deleted.
+- **The source doc is read-only, always.** Sophie **never** calls `documents.batchUpdate` and never writes anything into the source manuscript. Reads use the **Docs API** `documents.get` (text + structure + index map); output goes into a fresh copy (`files.export` → OOXML comment injection → `files.create` with conversion into the Lektorat folder, issue #31). Comments in the copy are **natively anchored** because Google's DOCX import converts OOXML comments into real anchored Docs comments — the one interop path that works (direct `comments.create` renders unanchored, verified).
+- **Service account**, not a login account — sidesteps the Docs-UI-automation ToS question entirely until/unless Option A is built. Pure documented API use, no browser automation.
+- **Scope stays per-doc + the Lektorat folder.** The source doc is shared as editor with the Sophie service account per-run; the fixed Lektorat folder (`Settings.lektorat_folder_id`) is shared for the copies. Sophie only ever touches docs explicitly shared with her and copies she created — never browses Drive.
+- **The copy is first-class for the add-on.** Imported anchored comments are real Drive comments, so `comments.list` / `replies` (resolve) and the sidebar (findings feed, jump, resolve) work unchanged inside the copy.
+- **Second pass runs on the previous copy.** The version suffix is stripped before the next one is appended (`X_lektoriert_v1` → `X_lektoriert_v2`). Re-reads are always fresh; never reuse stale positions. Cross-version re-posting semantics are a known open nuance (issue #31).
 
 ---
 
@@ -339,7 +340,7 @@ These guarantees shape the domain: `ReviewRun` carries a posted-findings checkpo
 Tests are first-class and kept. Mirror the architecture:
 
 - **`tests/unit/`** — the **domain core**, with **zero network and zero adapters**. Chunking, quote-and-locate, consistency accumulation, prompt building, and the orchestrator (driven by **fake in-memory ports**) are all deterministic and fast. Includes `test_domain_purity.py` asserting `domain/` imports no external I/O libraries.
-- **`tests/adapters/`** — each adapter with its external dependency **mocked**: Anthropic SDK mocked (assert request shape, parse a canned structured response), Google Docs/Drive mocked (assert read scope and that the output adapter calls `comments.create` and **never** `batchUpdate`).
+- **`tests/adapters/`** — each adapter with its external dependency **mocked**: Anthropic SDK mocked (assert request shape, parse a canned structured response), Google Docs/Drive mocked (assert read scope and that the output adapter **never** calls `batchUpdate` and never writes into the source doc — the DOCX copy adapter only exports, then creates a new file). The DOCX annotator is tested offline against real python-docx output (unzip the bytes, assert `comments.xml` + `commentRangeStart`).
 - **`tests/integration/`** — full `read → chunk → analyze → consolidate → write` with all externals faked, asserting the end-to-end contract and that **swapping the `OutputPort`** changes only output behavior. Must include **document-safety tests (§10):** a retry/restart mid-write **never double-posts** (idempotency checkpoint honored), and an interrupted run lands as `INCOMPLETE`/`FAILED`, never `DONE`. Plus a **prompt-cache test** asserting `cache_read_input_tokens > 0` on the second same-prefix call (§7).
 - **Fixtures** are **synthetic German manuscripts only** (`tests/fixtures/`). Never commit real creator content.
 

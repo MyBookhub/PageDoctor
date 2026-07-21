@@ -28,3 +28,10 @@ class ReviewRun(BaseModel):
     correlation_id: str
     posted_finding_keys: frozenset[str] = frozenset()
     token_budget: int | None = None
+    # The Lektorat copy this run produced (issue #31). None while running, or for adapters
+    # that write into the source doc itself.
+    output_doc_id: str | None = None
+
+
+class OutputResult(BaseModel):
+    output_doc_id: str | None = None

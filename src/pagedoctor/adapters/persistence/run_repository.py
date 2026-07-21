@@ -54,6 +54,7 @@ def to_row(run: ReviewRun) -> ReviewRunRow:
         correlation_id=run.correlation_id,
         posted_finding_keys=sorted(run.posted_finding_keys),
         token_budget=run.token_budget,
+        output_doc_id=run.output_doc_id,
     )
 
 
@@ -69,4 +70,5 @@ def to_domain(row: ReviewRunRow) -> ReviewRun:
         correlation_id=row.correlation_id,
         posted_finding_keys=frozenset(row.posted_finding_keys),
         token_budget=row.token_budget,
+        output_doc_id=row.output_doc_id,
     )

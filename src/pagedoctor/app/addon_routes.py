@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from pagedoctor.app.addon_auth import require_addon_token
 from pagedoctor.app.container import get_container
 from pagedoctor.app.routes import execute_in_background
+from pagedoctor.app.view_models import doc_url
 from pagedoctor.domain.errors import DocumentAccessDeniedError, RunNotFoundError
 from pagedoctor.domain.models.config import (
     BookType,
@@ -85,6 +86,7 @@ class RunStatusResponse(BaseModel):
     finding_count: int
     started_at: datetime | None
     finished_at: datetime | None
+    output_doc_url: str | None
 
 
 class ResolveResult(BaseModel):
@@ -216,6 +218,7 @@ def get_run_status(doc_id: str, run_id: UUID, request: Request) -> RunStatusResp
         finding_count=run.finding_count,
         started_at=run.started_at,
         finished_at=run.finished_at,
+        output_doc_url=doc_url(run.output_doc_id) if run.output_doc_id else None,
     )
 
 

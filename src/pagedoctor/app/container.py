@@ -9,9 +9,9 @@ from sqlalchemy.orm import sessionmaker
 from pagedoctor.adapters.clock import SystemClock
 from pagedoctor.adapters.google.auth import build_docs_service, build_drive_service
 from pagedoctor.adapters.google.comment_resolver import DriveCommentResolver
-from pagedoctor.adapters.google.comments_output import CommentsOutputAdapter
 from pagedoctor.adapters.google.comments_source import GoogleCommentsSource
 from pagedoctor.adapters.google.docs_source import GoogleDocsSource
+from pagedoctor.adapters.google.docx_copy_output import DocxCopyOutputAdapter
 from pagedoctor.adapters.llm.anthropic_provider import AnthropicLlmProvider
 from pagedoctor.adapters.persistence.run_repository import PostgresRunRepository
 from pagedoctor.config import Settings
@@ -55,7 +55,9 @@ def build_container(settings: Settings) -> Container:
         return ReviewOrchestrator(
             source=GoogleDocsSource(build_docs_service(settings)),
             engine=EditingEngine(provider),
-            output=CommentsOutputAdapter(build_drive_service(settings)),
+            output=DocxCopyOutputAdapter(
+                build_drive_service(settings), settings.lektorat_folder_id
+            ),
             repository=repository,
             clock=clock,
         )

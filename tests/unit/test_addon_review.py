@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from fakes.comment_resolver import FakeCommentResolver
 from fakes.comments_source import FakeCommentsSource
+from fakes.output import FakeOutputPort
 from fakes.web import DOC_ID, FakeWeb, build_fake_web, fake_settings
 from pagedoctor.app.main import create_app
 from pagedoctor.domain.models.comment import DocComment
@@ -140,6 +141,20 @@ def test_run_status_reports_done_and_state_reflects_it() -> None:
     state_body = state_response.json()
     assert state_body["latest_run_id"] == run_id
     assert state_body["last_config"]["book_type"] == "cookbook"
+
+
+def test_run_status_links_the_lektorat_copy() -> None:
+    web = build_fake_web(output=FakeOutputPort(output_doc_id="copy-123"), settings=fake_settings())
+    client = TestClient(create_app(web.container))
+
+    with client:
+        review_response = client.post(f"/docs/{DOC_ID}/review", json=VALID_PAYLOAD)
+        run_id = review_response.json()["run_id"]
+        status_response = client.get(f"/docs/{DOC_ID}/runs/{run_id}/status")
+
+    body = status_response.json()
+    assert body["done"] is True
+    assert body["output_doc_url"] == "https://docs.google.com/document/d/copy-123/edit"
 
 
 def test_run_status_for_wrong_doc_is_not_found() -> None:

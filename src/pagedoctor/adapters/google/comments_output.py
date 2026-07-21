@@ -12,7 +12,7 @@ from pagedoctor.domain.errors import (
 )
 from pagedoctor.domain.models.consistency import ConsistencyReport, TermVariant
 from pagedoctor.domain.models.finding import Finding
-from pagedoctor.domain.models.run import ReviewRun
+from pagedoctor.domain.models.run import OutputResult, ReviewRun
 from pagedoctor.domain.services.comment_format import (
     CONSISTENCY_HEADER,
     format_comment_body,
@@ -35,7 +35,7 @@ class CommentsOutputAdapter:
 
     def write_findings(
         self, run: ReviewRun, findings: Sequence[Finding], report: ConsistencyReport
-    ) -> None:
+    ) -> OutputResult:
         # No id is embedded in the posted text (§9 persona voice), so a finding's key is
         # re-derived from its own quoted content when re-scanning the doc — this makes the
         # scan itself the source of truth, not a marker string.
@@ -59,6 +59,8 @@ class CommentsOutputAdapter:
             "posted findings to document",
             extra={"posted_count": posted, "finding_count": len(findings)},
         )
+        # Comments land in the source doc itself — there is no separate output document.
+        return OutputResult(output_doc_id=None)
 
     def posted_finding_keys(self, doc_id: str, contents: Sequence[str]) -> set[str]:
         keys: set[str] = set()

@@ -26,3 +26,4 @@ class ReviewRunRow(Base):
     correlation_id: Mapped[str] = mapped_column(String, nullable=False)
     posted_finding_keys: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     token_budget: Mapped[int | None] = mapped_column(Integer)
+    output_doc_id: Mapped[str | None] = mapped_column(String)
