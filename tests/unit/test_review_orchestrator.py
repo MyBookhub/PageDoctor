@@ -19,7 +19,7 @@ from pagedoctor.domain.models.finding import (
     Priority,
     Suggestion,
 )
-from pagedoctor.domain.models.run import ReviewRun, RunStatus
+from pagedoctor.domain.models.run import OutputResult, ReviewRun, RunStatus
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
@@ -93,6 +93,16 @@ def test_completed_run_persists_in_repository() -> None:
     stored = repository.get(run.id)
     assert stored.status is RunStatus.DONE
     assert stored.posted_finding_keys == run.posted_finding_keys
+
+
+def test_completed_run_records_the_output_copy() -> None:
+    repository = InMemoryRunRepository()
+    output = FakeOutputPort(output_doc_id="copy-123")
+
+    run = _orchestrator(repository, output, _provider("ist braun")).start(DOC_ID, _config())
+
+    assert run.output_doc_id == "copy-123"
+    assert repository.get(run.id).output_doc_id == "copy-123"
 
 
 def test_killed_run_resumes_from_checkpoint_without_reposting() -> None:
@@ -196,8 +206,9 @@ def test_run_binds_correlation_id_for_downstream_logs_then_resets() -> None:
             run: ReviewRun,
             findings: Sequence[Finding],
             report: ConsistencyReport,
-        ) -> None:
+        ) -> OutputResult:
             seen.append(get_correlation_id())
+            return OutputResult()
 
     repository = InMemoryRunRepository()
     orchestrator = ReviewOrchestrator(

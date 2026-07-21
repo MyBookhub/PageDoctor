@@ -31,6 +31,7 @@ def _run() -> ReviewRun:
         correlation_id="cid-7",
         posted_finding_keys=frozenset({"aaa", "bbb", "ccc"}),
         token_budget=50000,
+        output_doc_id="copy-7",
     )
 
 
@@ -55,4 +56,6 @@ def test_row_carries_only_metadata_not_content() -> None:
         "correlation_id",
         "posted_finding_keys",
         "token_budget",
+        # A Drive file id (the Lektorat copy a run produced) — an identifier, not content.
+        "output_doc_id",
     }

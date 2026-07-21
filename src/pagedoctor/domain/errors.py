@@ -26,6 +26,10 @@ class CommentPostingError(PageDoctorError):
     pass
 
 
+class OutputCopyError(PageDoctorError):
+    pass
+
+
 class LlmResponseInvalidError(PageDoctorError):
     pass
 

@@ -6,7 +6,12 @@
     <div class="progress__meta">
       {% if run.is_terminal %}
         {{ run.finding_count }} Anmerkung(en) ·
-        <a href="{{ run.doc_url }}" target="_blank" rel="noopener">Dokument öffnen</a>
+        {% if run.output_doc_url %}
+          <a href="{{ run.output_doc_url }}" target="_blank" rel="noopener">Lektorierte Version öffnen</a> ·
+          <a href="{{ run.doc_url }}" target="_blank" rel="noopener">Original öffnen</a>
+        {% else %}
+          <a href="{{ run.doc_url }}" target="_blank" rel="noopener">Dokument öffnen</a>
+        {% endif %}
       {% else %}
         Die Prüfung läuft im Hintergrund – diese Anzeige aktualisiert sich automatisch.
       {% endif %}

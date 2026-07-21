@@ -302,7 +302,6 @@
         dismiss:
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
       };
-      var CATEGORY_LABELS = { proofreading: 'Korrektorat', editing: 'Lektorat' };
       var configPrefilled = false;
 
       function applyConfig(cfg) {
@@ -385,11 +384,26 @@
             document.getElementById('run').disabled = false;
             if (p.status === 'failed') {
               setStatus('Review fehlgeschlagen.');
+            } else if (p.output_doc_url) {
+              // Findings land as anchored comments in a fresh versioned copy, not in this
+              // doc — point the PM there instead of reloading this doc's (empty) list.
+              showCopyLink(p.output_doc_url, p.finding_count);
             } else {
               load();
             }
           })
           .reviewStatus(runId);
+      }
+
+      function showCopyLink(url, count) {
+        var status = document.getElementById('status');
+        status.textContent = 'Fertig — ' + count + ' Anmerkung(en) in der lektorierten Version. ';
+        var link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = 'Lektorierte Version öffnen';
+        status.appendChild(link);
       }
 
       function load() {
@@ -417,20 +431,7 @@
           setStatus('Keine offenen Anmerkungen.');
           return;
         }
-        var counts = { FEHLER: 0, EMPFEHLUNG: 0, HINWEIS: 0 };
-        findings.forEach(function (finding) {
-          counts[finding.priority] = (counts[finding.priority] || 0) + 1;
-        });
-        setStatus(
-          findings.length +
-            ' offen · ' +
-            counts.FEHLER +
-            ' Fehler · ' +
-            counts.EMPFEHLUNG +
-            ' Empfehlung · ' +
-            counts.HINWEIS +
-            ' Hinweis'
-        );
+        setStatus(findings.length + ' offene Anmerkung(en)');
         findings.forEach(function (finding) {
           list.appendChild(card(finding));
         });
@@ -440,7 +441,6 @@
         var el = document.createElement('div');
         el.className = 'card';
         el.innerHTML =
-          '<div class="tags"><span class="badge"></span><span class="cat"></span></div>' +
           '<div class="original"></div>' +
           '<div class="proposed"></div>' +
           '<div class="reason"></div>' +
@@ -450,11 +450,6 @@
           '<button class="ghost dismiss">' + ICONS.dismiss + 'Verwerfen</button>' +
           '</div>';
 
-        var badge = el.querySelector('.badge');
-        badge.textContent = finding.priority;
-        badge.classList.add(finding.priority);
-        el.querySelector('.cat').textContent =
-          CATEGORY_LABELS[finding.category] || finding.category;
         el.querySelector('.original').textContent = finding.quote;
         el.querySelector('.proposed').textContent = finding.proposed_change;
         el.querySelector('.reason').textContent = finding.reason_de;

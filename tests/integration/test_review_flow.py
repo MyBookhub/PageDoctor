@@ -18,7 +18,7 @@ from pagedoctor.domain.models.finding import (
     Priority,
     Suggestion,
 )
-from pagedoctor.domain.models.run import ReviewRun, RunStatus
+from pagedoctor.domain.models.run import OutputResult, ReviewRun, RunStatus
 from pagedoctor.domain.services.engine import EditingEngine
 from pagedoctor.domain.services.review_orchestrator import ReviewOrchestrator
 
@@ -31,8 +31,8 @@ SECRET_CHANGE = "ist dunkelbraun"
 class NullOutputPort:
     def write_findings(
         self, run: ReviewRun, findings: Sequence[Finding], report: ConsistencyReport
-    ) -> None:
-        return None
+    ) -> OutputResult:
+        return OutputResult()
 
 
 def _config() -> ReviewConfig:

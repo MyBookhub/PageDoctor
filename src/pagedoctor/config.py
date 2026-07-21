@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     )
     google_service_account_file: str
     google_service_account_email: str | None = None
+    # Fixed Drive folder for the versioned "_lektoriert_vN" copies (issue #31). The service
+    # account has write access there; a more elegant location strategy is a later version.
+    lektorat_folder_id: str = "1wEMp95LbYq7zBK0-8QfrrEYI1dKqSy9i"
     # Optional shared-secret gate for the PM web app. When unset (local dev) auth is off;
     # set both when the app is deployed so it is not openly reachable. SSO is a future swap.
     basic_auth_user: str | None = None

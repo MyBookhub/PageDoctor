@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pagedoctor.domain.models.config import ReviewConfig
 from pagedoctor.domain.models.engine import EngineResult
-from pagedoctor.domain.models.run import ReviewRun, RunStatus
+from pagedoctor.domain.models.run import OutputResult, ReviewRun, RunStatus
 from pagedoctor.domain.ports.clock import ClockPort
 from pagedoctor.domain.ports.document_source import DocumentSourcePort
 from pagedoctor.domain.ports.output import OutputPort
@@ -95,10 +95,12 @@ class ReviewOrchestrator:
             update={"status": RunStatus.WRITING, "finding_count": len(result.findings)}
         )
         self._repository.save(writing)
-        self._output.write_findings(writing, result.findings, result.report)
-        return self.checkpoint_completion(writing, result)
+        output = self._output.write_findings(writing, result.findings, result.report)
+        return self.checkpoint_completion(writing, result, output)
 
-    def checkpoint_completion(self, run: ReviewRun, result: EngineResult) -> ReviewRun:
+    def checkpoint_completion(
+        self, run: ReviewRun, result: EngineResult, output: OutputResult
+    ) -> ReviewRun:
         posted = set(run.posted_finding_keys)
         posted.update(finding_key(run.doc_id, finding.suggestion) for finding in result.findings)
         posted.add(consistency_report_key(run.doc_id))
@@ -108,6 +110,7 @@ class ReviewOrchestrator:
                 "status": status,
                 "finished_at": self._clock.now(),
                 "posted_finding_keys": frozenset(posted),
+                "output_doc_id": output.output_doc_id,
             }
         )
         self._repository.save(completed)

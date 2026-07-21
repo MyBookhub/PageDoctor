@@ -19,10 +19,11 @@ flowchart LR
 - **Whole-book consistency pass** — inconsistent terms, spelling variants, and repetition stats across the entire manuscript, not just per chunk.
 - **Configurable** per run: book type (cookbook / advice / novel-memoir / children's), strictness (light / standard / thorough), custom dictionary, and a cookbook **recipe mode** (quantity/ingredient/temperature/abbreviation consistency).
 - **Sophie's voice** — every comment is in German, in the warm tone of a real editor, never "AI" language. Each comment carries only the exact quoted original, the proposed change, and a one-line German reason — no header, no label, no id, no signature.
+- **Anchored to the text** — findings land as natively anchored comments in a versioned `_lektoriert_vN` copy of the manuscript (DOCX round-trip, issue #31); the original document is never modified.
 
 ## How output works (and why)
 
-A server-side service account **cannot** create native Google Docs suggestions (verified — see [`docs/PAGEDOCTOR_FEASIBILITY.md`](./docs/PAGEDOCTOR_FEASIBILITY.md)). So in v1 **Sophie posts structured comments and never edits the manuscript** — the creator applies every change themselves. The "write to the doc" step sits behind a **swappable output adapter**, so a future upgrade to native tracked-change suggestions (browser automation) can drop in without touching the AI engine, persona, modes, or config.
+A server-side service account **cannot** create native Google Docs suggestions, and Drive API comments on a Docs file render **unanchored** (verified — see [`docs/PAGEDOCTOR_FEASIBILITY.md`](./docs/PAGEDOCTOR_FEASIBILITY.md) and issue #31). Anchored findings are a must, so Sophie goes through Google's Office interop instead: she exports the manuscript to DOCX, injects her findings as OOXML comments, and imports the result as a fresh **`_lektoriert_vN` copy** in a fixed Drive folder — where the comments arrive **natively anchored** to their text spans. **The original manuscript is never touched**; the creator works in the versioned copy and applies every change themselves. The "write" step sits behind a **swappable output adapter**, so a future upgrade to native tracked-change suggestions can drop in without touching the AI engine, persona, modes, or config.
 
 ## Architecture
 
@@ -44,7 +45,7 @@ flowchart TD
 
     dsp --> gds[GoogleDocsSource]
     llp --> alp[AnthropicLlmProvider]
-    op --> co[CommentsOutputAdapter]
+    op --> co[DocxCopyOutputAdapter]
     rrp --> prr[PostgresRunRepository]
 ```
 

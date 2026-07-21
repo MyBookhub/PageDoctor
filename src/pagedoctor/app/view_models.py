@@ -59,6 +59,7 @@ class RunView(BaseModel):
     id: str
     doc_id: str
     doc_url: str
+    output_doc_url: str | None
     status_value: str
     status_label: str
     tone: str
@@ -69,13 +70,18 @@ class RunView(BaseModel):
     modes_label: str
 
 
+def doc_url(doc_id: str) -> str:
+    return f"https://docs.google.com/document/d/{doc_id}/edit"
+
+
 def run_view(run: ReviewRun) -> RunView:
     modes = ", ".join(_MODE_LABELS[mode] for mode in sorted(run.config.modes))
     started = run.started_at.strftime("%d.%m.%Y %H:%M") if run.started_at is not None else "—"
     return RunView(
         id=str(run.id),
         doc_id=run.doc_id,
-        doc_url=f"https://docs.google.com/document/d/{run.doc_id}/edit",
+        doc_url=doc_url(run.doc_id),
+        output_doc_url=doc_url(run.output_doc_id) if run.output_doc_id else None,
         status_value=run.status.value,
         status_label=_STATUS_LABELS[run.status],
         tone=_STATUS_TONES[run.status],
