@@ -48,10 +48,10 @@ class CommentsOutputAdapter:
         already = set(run.posted_finding_keys) | self.posted_finding_keys(run.doc_id, existing)
         posted = 0
         for finding in findings:
-            key = finding_key(run.doc_id, finding)
+            key = finding_key(run.doc_id, finding.suggestion)
             if key in already:
                 continue
-            self.create_comment(run.doc_id, format_comment_body(finding))
+            self.create_comment(run.doc_id, format_comment_body(finding.suggestion))
             already.add(key)
             posted += 1
 
@@ -63,9 +63,9 @@ class CommentsOutputAdapter:
     def posted_finding_keys(self, doc_id: str, contents: Sequence[str]) -> set[str]:
         keys: set[str] = set()
         for content in contents:
-            finding = parse_comment_body(content)
-            if finding is not None:
-                keys.add(finding_key(doc_id, finding))
+            suggestion = parse_comment_body(content)
+            if suggestion is not None:
+                keys.add(finding_key(doc_id, suggestion))
         return keys
 
     def list_comment_contents(self, doc_id: str) -> list[str]:

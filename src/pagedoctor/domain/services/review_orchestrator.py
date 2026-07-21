@@ -100,7 +100,7 @@ class ReviewOrchestrator:
 
     def checkpoint_completion(self, run: ReviewRun, result: EngineResult) -> ReviewRun:
         posted = set(run.posted_finding_keys)
-        posted.update(finding_key(run.doc_id, finding) for finding in result.findings)
+        posted.update(finding_key(run.doc_id, finding.suggestion) for finding in result.findings)
         posted.add(consistency_report_key(run.doc_id))
         status = RunStatus.DONE if result.complete else RunStatus.INCOMPLETE
         completed = run.model_copy(

@@ -98,7 +98,7 @@ def test_completed_run_persists_in_repository() -> None:
 def test_killed_run_resumes_from_checkpoint_without_reposting() -> None:
     repository = InMemoryRunRepository()
     finding = _finding("ist braun")
-    keys = frozenset({finding_key(DOC_ID, finding), consistency_report_key(DOC_ID)})
+    keys = frozenset({finding_key(DOC_ID, finding.suggestion), consistency_report_key(DOC_ID)})
     # A run that posted everything but was killed before being marked done.
     killed = ReviewRun(
         id=uuid.uuid4(),

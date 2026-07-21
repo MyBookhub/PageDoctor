@@ -111,23 +111,12 @@ def test_comment_carries_all_required_fields() -> None:
     _adapter(client).write_findings(_run(), [finding], _report(empty=True))
 
     body = _created_bodies(client)[0]
-    assert "Korrektorat" in body
-    assert "Fehler" in body
     assert "Der Hund schläft." in body
     assert "Der Hund schläft tief." in body
     assert "Präzisere Formulierung." in body
     assert "#" not in body
-    assert finding_key(DOC_ID, finding) not in body
-
-
-def test_editing_finding_labelled_lektorat() -> None:
-    client = _service()
-
-    _adapter(client).write_findings(
-        _run(), [_finding(category=Category.EDITING)], _report(empty=True)
-    )
-
-    assert "Lektorat" in _created_bodies(client)[0]
+    assert "Sophie" not in body
+    assert finding_key(DOC_ID, finding.suggestion) not in body
 
 
 def test_consistency_report_is_not_posted_yet() -> None:
@@ -171,7 +160,9 @@ def test_findings_in_the_run_checkpoint_are_skipped() -> None:
     finding = _finding()
 
     _adapter(client).write_findings(
-        _run(posted=frozenset({finding_key(DOC_ID, finding)})), [finding], _report(empty=True)
+        _run(posted=frozenset({finding_key(DOC_ID, finding.suggestion)})),
+        [finding],
+        _report(empty=True),
     )
 
     assert client.comments.return_value.create.call_count == 0

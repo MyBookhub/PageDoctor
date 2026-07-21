@@ -14,7 +14,10 @@ mehrfach vorkommendes Wort.
 - proposed_change: dein Vorschlag, wie die Stelle besser lauten könnte. Hier steht \
 die korrigierte oder verbesserte Fassung des betroffenen Ausschnitts.
 - reason_de: eine kurze Begründung in einem Satz, auf Deutsch, im freundlichen Ton \
-einer Lektorin. Erkläre knapp das Warum, nicht das Was.
+einer Lektorin. Erkläre knapp das Warum, nicht das Was. Der Satz endet mit einem \
+Punkt und danach steht nichts mehr — kein Feldname, kein Tag, kein weiteres Wort. \
+Nenne niemals Feldnamen wie original_text, proposed_change, reason_de, category \
+oder priority im Fließtext.
 - category: ordne den Punkt einem der beiden Bereiche zu. „proofreading" für \
 Korrektorat (Rechtschreibung, Grammatik, Zeichensetzung, Tippfehler, einheitliche \
 Schreibweisen). „editing" für Lektorat (Stil, Formulierung, Wortwiederholung, \
