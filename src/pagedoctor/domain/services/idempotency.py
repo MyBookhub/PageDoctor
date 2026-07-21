@@ -1,21 +1,16 @@
 import hashlib
 
-from pagedoctor.domain.models.finding import Finding
+from pagedoctor.domain.models.finding import Suggestion
 
 KEY_LENGTH = 16
 _SEP = "\x00"
 
 
-def finding_key(doc_id: str, finding: Finding) -> str:
-    suggestion = finding.suggestion
-    material = _SEP.join(
-        (
-            doc_id,
-            suggestion.original_text,
-            suggestion.proposed_change,
-            finding.category.value,
-        )
-    )
+def finding_key(doc_id: str, suggestion: Suggestion) -> str:
+    # Category/priority are not part of a finding's identity: they no longer appear in the
+    # posted comment text (Sophie's voice, no labels/brackets), so they can't be re-derived
+    # when re-scanning existing Drive comments — only the quote and proposed change can.
+    material = _SEP.join((doc_id, suggestion.original_text, suggestion.proposed_change))
     return _digest(material)
 
 

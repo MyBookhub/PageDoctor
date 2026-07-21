@@ -19,7 +19,7 @@ class FakeOutputPort:
     ) -> None:
         already = set(run.posted_finding_keys) | set(self.posted)
         for finding in findings:
-            key = finding_key(run.doc_id, finding)
+            key = finding_key(run.doc_id, finding.suggestion)
             if key in already:
                 continue
             self.post(key, finding.suggestion.proposed_change)

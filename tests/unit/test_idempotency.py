@@ -1,47 +1,38 @@
-from pagedoctor.domain.models.finding import Category, Finding, Priority, Suggestion
+from pagedoctor.domain.models.finding import Suggestion
 from pagedoctor.domain.services.idempotency import consistency_report_key, finding_key
 
 
-def _finding(
+def _suggestion(
     original: str = "Der Hund schläft.",
     change: str = "Der Hund schläft tief.",
-    category: Category = Category.PROOFREADING,
-) -> Finding:
-    return Finding(
-        suggestion=Suggestion(original_text=original, proposed_change=change, reason_de="r"),
-        category=category,
-        priority=Priority.FEHLER,
-    )
+    reason: str = "r",
+) -> Suggestion:
+    return Suggestion(original_text=original, proposed_change=change, reason_de=reason)
 
 
 def test_same_finding_same_doc_is_stable() -> None:
-    assert finding_key("doc-1", _finding()) == finding_key("doc-1", _finding())
+    assert finding_key("doc-1", _suggestion()) == finding_key("doc-1", _suggestion())
 
 
 def test_key_is_short_lowercase_hex() -> None:
-    key = finding_key("doc-1", _finding())
+    key = finding_key("doc-1", _suggestion())
     assert len(key) == 16
     assert all(char in "0123456789abcdef" for char in key)
 
 
 def test_different_doc_changes_key() -> None:
-    assert finding_key("doc-1", _finding()) != finding_key("doc-2", _finding())
+    assert finding_key("doc-1", _suggestion()) != finding_key("doc-2", _suggestion())
 
 
-def test_different_quote_change_or_category_changes_key() -> None:
-    base = finding_key("doc-1", _finding())
-    assert base != finding_key("doc-1", _finding(original="Die Katze schläft."))
-    assert base != finding_key("doc-1", _finding(change="Der Hund schläft fest."))
-    assert base != finding_key("doc-1", _finding(category=Category.EDITING))
+def test_different_quote_or_change_changes_key() -> None:
+    base = finding_key("doc-1", _suggestion())
+    assert base != finding_key("doc-1", _suggestion(original="Die Katze schläft."))
+    assert base != finding_key("doc-1", _suggestion(change="Der Hund schläft fest."))
 
 
 def test_reason_does_not_affect_key() -> None:
-    a = Finding(
-        suggestion=Suggestion(original_text="a", proposed_change="b", reason_de="erste"),
-        category=Category.EDITING,
-        priority=Priority.HINWEIS,
-    )
-    b = a.model_copy(update={"suggestion": a.suggestion.model_copy(update={"reason_de": "zweite"})})
+    a = Suggestion(original_text="a", proposed_change="b", reason_de="erste")
+    b = a.model_copy(update={"reason_de": "zweite"})
     assert finding_key("doc-1", a) == finding_key("doc-1", b)
 
 

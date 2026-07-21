@@ -18,7 +18,7 @@ flowchart LR
 - **Two check modes**, individually or combined: **Proofreading** (Korrektorat — spelling, grammar, punctuation) and **Editing** (Lektorat — style, consistency, repetition, readability).
 - **Whole-book consistency pass** — inconsistent terms, spelling variants, and repetition stats across the entire manuscript, not just per chunk.
 - **Configurable** per run: book type (cookbook / advice / novel-memoir / children's), strictness (light / standard / thorough), custom dictionary, and a cookbook **recipe mode** (quantity/ingredient/temperature/abbreviation consistency).
-- **Sophie's voice** — every comment is in German, in the warm tone of a real editor, never "AI" language. Each comment carries the exact quoted original, the proposed change, a one-line German reason, the category, and a priority (Fehler / Empfehlung / Hinweis) — no brackets or ids in the visible text.
+- **Sophie's voice** — every comment is in German, in the warm tone of a real editor, never "AI" language. Each comment carries only the exact quoted original, the proposed change, and a one-line German reason — no header, no label, no id, no signature.
 
 ## How output works (and why)
 

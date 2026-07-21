@@ -16,7 +16,7 @@ from pagedoctor.domain.models.config import (
     ReviewConfig,
     Strictness,
 )
-from pagedoctor.domain.models.finding import Category, Finding, Priority
+from pagedoctor.domain.models.finding import Suggestion
 from pagedoctor.domain.models.run import ReviewRun, RunStatus
 from pagedoctor.domain.services.comment_format import parse_comment_body
 from pagedoctor.domain.services.idempotency import finding_key
@@ -40,8 +40,6 @@ class AddonFinding(BaseModel):
     quote: str
     proposed_change: str
     reason_de: str
-    category: Category
-    priority: Priority
 
 
 class DocFindings(BaseModel):
@@ -94,16 +92,13 @@ class ResolveResult(BaseModel):
     resolved: bool
 
 
-def to_addon_finding(doc_id: str, finding: Finding, comment_id: str | None) -> AddonFinding:
-    suggestion = finding.suggestion
+def to_addon_finding(doc_id: str, suggestion: Suggestion, comment_id: str | None) -> AddonFinding:
     return AddonFinding(
-        key=finding_key(doc_id, finding),
+        key=finding_key(doc_id, suggestion),
         comment_id=comment_id,
         quote=suggestion.original_text,
         proposed_change=suggestion.proposed_change,
         reason_de=suggestion.reason_de,
-        category=finding.category,
-        priority=finding.priority,
     )
 
 
@@ -159,9 +154,9 @@ def get_doc_findings(doc_id: str, request: Request) -> DocFindings:
     for comment in comments:
         if comment.resolved:
             continue
-        finding = parse_comment_body(comment.content)
-        if finding is not None:
-            findings.append(to_addon_finding(doc_id, finding, comment.id))
+        suggestion = parse_comment_body(comment.content)
+        if suggestion is not None:
+            findings.append(to_addon_finding(doc_id, suggestion, comment.id))
     logger.info("served add-on findings", extra={"finding_count": len(findings)})
     return DocFindings(doc_id=doc_id, findings=findings)
 

@@ -1,60 +1,47 @@
 from pagedoctor.domain.models.comment import DocComment
-from pagedoctor.domain.models.finding import Category, Finding, Priority, Suggestion
+from pagedoctor.domain.models.finding import Suggestion
 from pagedoctor.domain.services.comment_format import (
-    findings_from_comments,
     format_comment_body,
+    open_suggestions,
     parse_comment_body,
 )
 
 
-def _finding(
+def _suggestion(
     original: str = "Der Hund schläft.",
     proposed: str = "Der Hund schläft tief.",
     reason: str = "Präzisere Formulierung.",
-    category: Category = Category.PROOFREADING,
-    priority: Priority = Priority.FEHLER,
-) -> Finding:
-    return Finding(
-        suggestion=Suggestion(original_text=original, proposed_change=proposed, reason_de=reason),
-        category=category,
-        priority=priority,
-    )
+) -> Suggestion:
+    return Suggestion(original_text=original, proposed_change=proposed, reason_de=reason)
 
 
 def test_format_then_parse_round_trips() -> None:
-    finding = _finding()
-    assert parse_comment_body(format_comment_body(finding)) == finding
-
-
-def test_round_trips_across_categories_and_priorities() -> None:
-    for category in Category:
-        for priority in Priority:
-            finding = _finding(category=category, priority=priority)
-            body = format_comment_body(finding)
-            assert parse_comment_body(body) == finding
+    suggestion = _suggestion()
+    assert parse_comment_body(format_comment_body(suggestion)) == suggestion
 
 
 def test_round_trips_with_umlauts_and_punctuation() -> None:
-    finding = _finding(
+    suggestion = _suggestion(
         original="Der »Hund« schläft, oder?",
         proposed="Der Hund schläft – tief und fest!",
         reason="Gedankenstrich statt Komma; Größe und Maß beachten.",
     )
-    assert parse_comment_body(format_comment_body(finding)) == finding
+    assert parse_comment_body(format_comment_body(suggestion)) == suggestion
 
 
 def test_round_trips_with_multiline_reason() -> None:
-    finding = _finding(reason="Erste Zeile.\nZweite Zeile mit Begründung.")
-    assert parse_comment_body(format_comment_body(finding)) == finding
+    suggestion = _suggestion(reason="Erste Zeile.\nZweite Zeile mit Begründung.")
+    assert parse_comment_body(format_comment_body(suggestion)) == suggestion
 
 
-def test_format_carries_no_visible_id() -> None:
-    body = format_comment_body(_finding())
+def test_format_carries_no_visible_id_label_or_signature() -> None:
+    body = format_comment_body(_suggestion())
     assert "#" not in body
     assert "[" not in body
     assert "]" not in body
-    assert body.startswith("Korrektorat · Fehler\n")
-    assert body.endswith("— Sophie Hoffmann")
+    assert "Sophie" not in body
+    assert body.startswith("Original: „Der Hund schläft.“\n")
+    assert body.endswith("Begründung: Präzisere Formulierung.")
 
 
 def test_parse_ignores_the_consistency_report() -> None:
@@ -74,18 +61,26 @@ def test_parse_ignores_a_plain_human_comment() -> None:
     assert parse_comment_body("Bitte hier nochmal prüfen, danke!") is None
 
 
-def test_parse_requires_the_signature_line() -> None:
-    body = format_comment_body(_finding()).replace("\n— Sophie Hoffmann", "")
-    assert parse_comment_body(body) is None
+def test_parse_still_accepts_the_signature_and_header_layout() -> None:
+    # Shipped briefly before the signature/header were dropped entirely. Real docs may still
+    # hold comments in this shape; findings are re-derived live, never persisted, so it must
+    # stay parseable or those open findings would silently disappear.
+    body = "\n".join(
+        (
+            "Korrektorat · Fehler",
+            "Original: „Der Hund schläft.“",
+            "Vorschlag: „Der Hund schläft tief.“",
+            "Begründung: Präzisere Formulierung.",
+            "— Sophie Hoffmann",
+        )
+    )
+    assert parse_comment_body(body) == _suggestion()
 
 
 def test_parse_still_accepts_the_very_first_layout() -> None:
-    # The layout shipped before comment metadata was consolidated: category/priority in a
-    # bracket, plus a trailing idempotency key after the signature. Real docs may still hold
-    # comments in this shape; findings are re-derived live, never persisted, so it must stay
-    # parseable or those open findings would silently disappear.
-    finding = _finding()
-    legacy_body = "\n".join(
+    # The very first layout ever shipped: category/priority in a bracket, plus a trailing
+    # idempotency key after the signature. Same reasoning as above — must stay parseable.
+    body = "\n".join(
         (
             "[Korrektorat · FEHLER]",
             "Original: „Der Hund schläft.“",
@@ -94,27 +89,27 @@ def test_parse_still_accepts_the_very_first_layout() -> None:
             "— Sophie Hoffmann  [#0123456789abcdef]",
         )
     )
-    assert parse_comment_body(legacy_body) == finding
+    assert parse_comment_body(body) == _suggestion()
 
 
-def test_findings_from_comments_keeps_open_findings_in_order() -> None:
-    first = _finding(original="Erstes Zitat.")
-    second = _finding(original="Zweites Zitat.", category=Category.EDITING)
+def test_open_suggestions_keeps_open_findings_in_order() -> None:
+    first = _suggestion(original="Erstes Zitat.")
+    second = _suggestion(original="Zweites Zitat.")
     comments = [
         DocComment(content=format_comment_body(first), resolved=False),
         DocComment(content=format_comment_body(second), resolved=False),
     ]
-    assert findings_from_comments(comments) == [first, second]
+    assert open_suggestions(comments) == [first, second]
 
 
-def test_findings_from_comments_drops_resolved_and_unparseable() -> None:
-    finding = _finding()
+def test_open_suggestions_drops_resolved_and_unparseable() -> None:
+    suggestion = _suggestion()
     comments = [
-        DocComment(content=format_comment_body(finding), resolved=False),
+        DocComment(content=format_comment_body(suggestion), resolved=False),
         DocComment(
-            content=format_comment_body(_finding(original="Erledigt.")),
+            content=format_comment_body(_suggestion(original="Erledigt.")),
             resolved=True,
         ),
         DocComment(content="Nur ein menschlicher Kommentar.", resolved=False),
     ]
-    assert findings_from_comments(comments) == [finding]
+    assert open_suggestions(comments) == [suggestion]
