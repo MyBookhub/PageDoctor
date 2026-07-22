@@ -76,7 +76,16 @@ class DocxCopyOutputAdapter:
             " and trashed=false"
         )
         try:
-            response = self._drive.files().list(q=query, fields="files(id)").execute()
+            response = (
+                self._drive.files()
+                .list(
+                    q=query,
+                    fields="files(id)",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True,
+                )
+                .execute()
+            )
         except HttpError as error:
             raise self.map_drive_error(run.doc_id, error) from error
         files = response.get("files", [])
@@ -93,8 +102,14 @@ class DocxCopyOutputAdapter:
         return cast("bytes", content)
 
     def source_name(self, doc_id: str) -> str:
+        # supportsAllDrives on every files.* call: BookHub manuscripts live in a Workspace
+        # Shared Drive, where the API answers 404 to flag-less requests even with access.
         try:
-            metadata = self._drive.files().get(fileId=doc_id, fields="name").execute()
+            metadata = (
+                self._drive.files()
+                .get(fileId=doc_id, fields="name", supportsAllDrives=True)
+                .execute()
+            )
         except HttpError as error:
             raise self.map_drive_error(doc_id, error) from error
         return metadata["name"]
@@ -116,9 +131,20 @@ class DocxCopyOutputAdapter:
         try:
             while True:
                 if page_token is None:
-                    request = self._drive.files().list(q=query, fields=fields)
+                    request = self._drive.files().list(
+                        q=query,
+                        fields=fields,
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True,
+                    )
                 else:
-                    request = self._drive.files().list(q=query, fields=fields, pageToken=page_token)
+                    request = self._drive.files().list(
+                        q=query,
+                        fields=fields,
+                        pageToken=page_token,
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True,
+                    )
                 response = request.execute()
                 for file in response.get("files", []):
                     match = name_re.match(file.get("name", ""))
@@ -144,6 +170,7 @@ class DocxCopyOutputAdapter:
                     },
                     media_body=media,
                     fields="id",
+                    supportsAllDrives=True,
                 )
                 .execute()
             )
