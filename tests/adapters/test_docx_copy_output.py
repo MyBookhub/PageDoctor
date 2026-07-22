@@ -189,6 +189,21 @@ def test_run_lookup_is_scoped_to_the_lektorat_folder() -> None:
     assert "appProperties" in query
 
 
+def test_every_drive_call_supports_shared_drives() -> None:
+    # Manuscripts live in a Workspace Shared Drive; without supportsAllDrives the API
+    # answers 404 even with access, so every files.get/list/create must carry the flag.
+    client = _service(folder_names=["Mein Kochbuch_lektoriert_v1"])
+    files_api = client.files.return_value
+
+    _adapter(client).write_findings(_run(), [_finding()], _report())
+
+    for call in files_api.list.call_args_list:
+        assert call.kwargs["supportsAllDrives"] is True
+        assert call.kwargs["includeItemsFromAllDrives"] is True
+    assert files_api.get.call_args.kwargs["supportsAllDrives"] is True
+    assert files_api.create.call_args.kwargs["supportsAllDrives"] is True
+
+
 def test_zero_findings_still_creates_the_copy() -> None:
     client = _service()
 
