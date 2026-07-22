@@ -9,6 +9,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload
 
 from pagedoctor.adapters.docx.annotator import annotate_docx
+from pagedoctor.adapters.pacing import HumanWorkPacer
 from pagedoctor.domain.errors import (
     DocumentAccessDeniedError,
     OutputCopyError,
@@ -38,9 +39,15 @@ class DocxCopyOutputAdapter:
     # configured Lektorat folder (issue #31). The source document is never touched — no
     # batchUpdate, no comments on it, nothing.
 
-    def __init__(self, drive_service: DriveResource, folder_id: str) -> None:
+    def __init__(
+        self,
+        drive_service: DriveResource,
+        folder_id: str,
+        pacer: HumanWorkPacer | None = None,
+    ) -> None:
         self._drive = drive_service
         self._folder_id = folder_id
+        self._pacer = pacer
 
     def write_findings(
         self, run: ReviewRun, findings: Sequence[Finding], report: ConsistencyReport
@@ -58,7 +65,7 @@ class DocxCopyOutputAdapter:
         if existing is not None:
             return OutputResult(output_doc_id=existing)
         content = self.export_docx(run.doc_id)
-        annotated = annotate_docx(content, findings)
+        annotated = self.annotate_paced(content, findings)
         name = self.next_copy_name(self.source_name(run.doc_id))
         copy_id = self.create_copy(run, name, annotated)
         logger.info(
@@ -66,6 +73,26 @@ class DocxCopyOutputAdapter:
             extra={"run_id": str(run.id), "finding_count": len(findings)},
         )
         return OutputResult(output_doc_id=copy_id)
+
+    def annotate_paced(self, content: bytes, findings: Sequence[Finding]) -> bytes:
+        # SIMULATE_HUMAN_WORK (issue #34): with a pacer injected, one randomized pause
+        # precedes every comment so the finished copy uploads only after the planned
+        # ~2h session; a clean manuscript still takes one "reading" pause. Without a
+        # pacer this is a plain pass-through.
+        pacer = self._pacer
+        if pacer is None:
+            return annotate_docx(content, findings)
+        intervals = iter(pacer.plan(len(findings)))
+
+        def pause_between() -> None:
+            # Intervals and pauses are planned 1:1 — running dry means the pacing contract
+            # broke, and that should fail loudly rather than silently skip the simulation.
+            pacer.pause(next(intervals))
+
+        annotated = annotate_docx(content, findings, pause_between)
+        if not findings:
+            pause_between()
+        return annotated
 
     def find_copy_for_run(self, run: ReviewRun) -> str | None:
         # Scoped to the Lektorat folder (§9 minimal scope): the run-id filter alone would be
