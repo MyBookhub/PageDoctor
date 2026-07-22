@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import random
 import uuid
 import zipfile
 from typing import TYPE_CHECKING, Any, cast
@@ -12,6 +13,7 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from pagedoctor.adapters.google.docx_copy_output import DocxCopyOutputAdapter
+from pagedoctor.adapters.pacing import MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, HumanWorkPacer
 from pagedoctor.domain.errors import DocumentAccessDeniedError, OutputCopyError
 from pagedoctor.domain.models.config import BookType, CheckMode, ReviewConfig, Strictness
 from pagedoctor.domain.models.consistency import ConsistencyReport
@@ -93,6 +95,10 @@ def _service(
 
 def _adapter(client: MagicMock) -> DocxCopyOutputAdapter:
     return DocxCopyOutputAdapter(cast("DriveResource", client), FOLDER_ID)
+
+
+def _adapter_with_pacer(client: MagicMock, pacer: HumanWorkPacer) -> DocxCopyOutputAdapter:
+    return DocxCopyOutputAdapter(cast("DriveResource", client), FOLDER_ID, pacer=pacer)
 
 
 def _create_kwargs(client: MagicMock) -> dict[str, Any]:
@@ -187,6 +193,42 @@ def test_run_lookup_is_scoped_to_the_lektorat_folder() -> None:
     query = client.files.return_value.list.call_args_list[0].kwargs["q"]
     assert f"'{FOLDER_ID}' in parents" in query
     assert "appProperties" in query
+
+
+def test_paced_run_sleeps_through_a_simulated_session_then_uploads() -> None:
+    # SIMULATE_HUMAN_WORK (issue #34): one pause per finding, upload afterwards. Sleep is
+    # injected, so the suite never actually waits.
+    client = _service()
+    slept: list[float] = []
+    pacer = HumanWorkPacer(rng=random.Random(7), sleep=slept.append)
+
+    result = _adapter_with_pacer(client, pacer).write_findings(
+        _run(), [_finding(), _finding()], _report()
+    )
+
+    assert result.output_doc_id == "copy-new"
+    assert len(slept) == 2
+    assert MIN_TOTAL_SECONDS <= sum(slept) <= MAX_TOTAL_SECONDS
+    assert client.files.return_value.create.call_count == 1
+
+
+def test_paced_clean_manuscript_still_pauses_once() -> None:
+    client = _service()
+    slept: list[float] = []
+    pacer = HumanWorkPacer(rng=random.Random(7), sleep=slept.append)
+
+    _adapter_with_pacer(client, pacer).write_findings(_run(), [], _report())
+
+    assert len(slept) == 1
+    assert client.files.return_value.create.call_count == 1
+
+
+def test_without_pacer_nothing_sleeps() -> None:
+    client = _service()
+
+    _adapter(client).write_findings(_run(), [_finding()], _report())
+
+    assert client.files.return_value.create.call_count == 1
 
 
 def test_every_drive_call_supports_shared_drives() -> None:

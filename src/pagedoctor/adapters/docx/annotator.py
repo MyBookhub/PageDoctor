@@ -1,5 +1,5 @@
 import io
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 
 from docx import Document
 from docx.document import Document as DocumentObject
@@ -16,10 +16,17 @@ COMMENT_AUTHOR = "Sophie Hoffmann"
 COMMENT_INITIALS = "SH"
 
 
-def annotate_docx(content: bytes, findings: Sequence[Finding]) -> bytes:
+def annotate_docx(
+    content: bytes,
+    findings: Sequence[Finding],
+    pause_between: Callable[[], None] | None = None,
+) -> bytes:
     document = Document(io.BytesIO(content))
     paragraphs = list(iter_paragraphs(document))
     for finding in findings:
+        # Invoked before each comment so a paced run "reads and thinks" first (issue #34).
+        if pause_between is not None:
+            pause_between()
         runs = anchor_runs(paragraphs, finding.suggestion.original_text)
         if not runs:
             # Unlocatable quotes anchor to the document start — surfaced, never dropped;

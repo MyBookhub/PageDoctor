@@ -13,6 +13,7 @@ from pagedoctor.adapters.google.comments_source import GoogleCommentsSource
 from pagedoctor.adapters.google.docs_source import GoogleDocsSource
 from pagedoctor.adapters.google.docx_copy_output import DocxCopyOutputAdapter
 from pagedoctor.adapters.llm.anthropic_provider import AnthropicLlmProvider
+from pagedoctor.adapters.pacing import HumanWorkPacer
 from pagedoctor.adapters.persistence.run_repository import PostgresRunRepository
 from pagedoctor.config import Settings
 from pagedoctor.domain.ports.comment_resolver import CommentResolverPort
@@ -56,7 +57,9 @@ def build_container(settings: Settings) -> Container:
             source=GoogleDocsSource(build_docs_service(settings)),
             engine=EditingEngine(provider),
             output=DocxCopyOutputAdapter(
-                build_drive_service(settings), settings.lektorat_folder_id
+                build_drive_service(settings),
+                settings.lektorat_folder_id,
+                pacer=HumanWorkPacer() if settings.simulate_human_work else None,
             ),
             repository=repository,
             clock=clock,

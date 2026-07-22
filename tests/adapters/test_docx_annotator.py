@@ -93,6 +93,19 @@ def test_no_findings_returns_valid_docx_without_comments() -> None:
         assert "word/comments.xml" not in archive.namelist()
 
 
+def test_pause_between_runs_once_per_comment() -> None:
+    source = _docx("Der Hund schläft.", "Die Katze schnurrt laut.")
+    pauses: list[int] = []
+
+    annotate_docx(
+        source,
+        [_finding(), _finding(original="Die Katze schnurrt", proposed="Die Katze schnurrt leise")],
+        pause_between=lambda: pauses.append(1),
+    )
+
+    assert len(pauses) == 2
+
+
 def test_source_text_is_never_modified() -> None:
     source = _docx("Der Hund schläft. Danach wacht er auf.")
 

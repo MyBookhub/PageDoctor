@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Fixed Drive folder for the versioned "_lektoriert_vN" copies (issue #31). The service
     # account has write access there; a more elegant location strategy is a later version.
     lektorat_folder_id: str = "1wEMp95LbYq7zBK0-8QfrrEYI1dKqSy9i"
+    # Issue #34: pace the write phase like a human editor — one randomized pause before
+    # each comment, copy uploaded only after ~2h. Deliberately inefficient; off by default.
+    simulate_human_work: bool = False
     # Optional shared-secret gate for the PM web app. When unset (local dev) auth is off;
     # set both when the app is deployed so it is not openly reachable. SSO is a future swap.
     basic_auth_user: str | None = None
