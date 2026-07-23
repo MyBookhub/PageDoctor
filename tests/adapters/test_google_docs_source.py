@@ -140,6 +140,16 @@ def test_read_concatenates_all_tabs_in_display_order() -> None:
 
     assert result.text == "Kapitel eins.\nKapitel zwei.\nUnterkapitel zwei-a.\nKapitel drei.\n"
     assert result.index_map.plain_text_length == len(result.text)
+    # Offset threading across sibling AND child tabs: text concatenation alone would still
+    # look right if an `offset =` reassignment in collect_tabs regressed — the segments
+    # would not. doc_start_index is tab-local by design (issue #31), hence 1 for each tab.
+    spans = [(s.text_start, s.text_end, s.doc_start_index) for s in result.index_map.segments]
+    assert spans == [
+        (0, 14, 1),
+        (14, 28, 1),
+        (28, 49, 1),
+        (49, 63, 1),
+    ]
 
 
 def test_tabbed_document_wins_over_legacy_body() -> None:
