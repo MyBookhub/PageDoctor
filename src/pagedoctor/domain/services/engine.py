@@ -29,8 +29,10 @@ class EditingEngine:
             cleaned = clean_findings(attach_locations(chunk, chunk_findings, document.text))
             findings.extend(cleaned)
             # Rolling memory (issue #41): only the hygiene-cleaned findings feed the next
-            # chunk's context, capped to the prompt window.
+            # chunk's context, capped to the prompt window. Explicit length math — a
+            # negative-index del would silently stop capping if the constant were 0.
             recent.extend(cleaned)
-            del recent[:-RECENT_FINDINGS_IN_PROMPT]
+            if len(recent) > RECENT_FINDINGS_IN_PROMPT:
+                del recent[: len(recent) - RECENT_FINDINGS_IN_PROMPT]
         report = build_consistency_report(document, config)
         return EngineResult(findings=findings, report=report, complete=complete)

@@ -37,6 +37,17 @@ def test_strips_trailing_json_syntax() -> None:
     assert strip_field_name_artifacts("Kürzer ist klarer.} category") == "Kürzer ist klarer."
 
 
+def test_degenerate_repetition_completes_fast() -> None:
+    # Review finding: the original regexes backtracked catastrophically (~294s) on
+    # degenerate model output. Possessive quantifiers + the bounded scan window must keep
+    # these flat — if this regresses, CI hangs here, which is the signal.
+    braces = "{}" * 3000 + " category"
+    tokens = "category." * 200 + "X"
+
+    assert strip_field_name_artifacts(braces) != ""
+    assert strip_field_name_artifacts(tokens).endswith("X")
+
+
 def test_sentence_final_quotes_survive() -> None:
     assert strip_field_name_artifacts("Besser wäre ‚das Rezept'.") == "Besser wäre ‚das Rezept'."
 

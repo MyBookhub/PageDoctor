@@ -2,6 +2,7 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import anthropic
+import pydantic
 import pytest
 
 from pagedoctor.adapters.llm.anthropic_provider import AnthropicLlmProvider
@@ -120,6 +121,30 @@ def test_sdk_error_is_mapped_to_invalid() -> None:
     client.messages.parse.side_effect = anthropic.AnthropicError("boom")
     with pytest.raises(LlmResponseInvalidError):
         _provider(client).analyze(_chunk(), _config(), ())
+
+
+def test_one_invalid_response_is_retried_and_the_run_survives() -> None:
+    # A single schema-invalid model response must not kill a whole-book run (issue on
+    # the 2026-07-23 run): the provider retries the chunk once.
+    client = MagicMock()
+    invalid = pydantic.ValidationError.from_exception_data("ChunkFindings", [])
+    client.messages.parse.side_effect = [invalid, _response(_findings())]
+
+    result = _provider(client).analyze(_chunk(), _config(), ())
+
+    assert result == _findings()
+    assert client.messages.parse.call_count == 2
+
+
+def test_two_invalid_responses_raise_the_typed_domain_error() -> None:
+    client = MagicMock()
+    invalid = pydantic.ValidationError.from_exception_data("ChunkFindings", [])
+    client.messages.parse.side_effect = [invalid, invalid]
+
+    with pytest.raises(LlmResponseInvalidError):
+        _provider(client).analyze(_chunk(), _config(), ())
+
+    assert client.messages.parse.call_count == 2
 
 
 def test_budget_trips_after_usage_accumulates() -> None:
