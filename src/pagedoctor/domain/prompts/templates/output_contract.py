@@ -29,6 +29,12 @@ zu lösen ist. „HINWEIS" für reine Geschmacks- oder Stilfragen, die optional 
 Verlasse dich nicht auf Zeichenpositionen oder Zeilennummern; gib niemals Indizes an. \
 Allein das wortwörtliche Zitat in original_text zählt.
 
+Melde niemals einen Eintrag, bei dem proposed_change identisch mit original_text ist — \
+ein Vorschlag ohne Änderung ist kein Befund. Bei Leerzeichen-Themen (doppelte oder \
+fehlende Leerzeichen) benenne in reason_de die genaue Stelle in Worten, zum Beispiel \
+„zwischen ‚30' und ‚Min.'" — in der Kommentar-Ansicht sind doppelte Leerzeichen optisch \
+nicht von einfachen zu unterscheiden.
+
 Beispiele für gute Einträge:
 
 - original_text: „Rezpet", proposed_change: „Rezept", reason_de: „Hier hat sich ein \

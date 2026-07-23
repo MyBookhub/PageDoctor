@@ -1,4 +1,7 @@
+from collections.abc import Sequence
+
 from pagedoctor.domain.models.config import BookType, CheckMode, ReviewConfig
+from pagedoctor.domain.models.finding import Finding
 from pagedoctor.domain.models.prompts import PromptBundle
 from pagedoctor.domain.prompts.templates.book_type import BOOK_TYPE_INSTRUCTIONS
 from pagedoctor.domain.prompts.templates.guide import CORRECTION_GUIDE
@@ -10,6 +13,27 @@ from pagedoctor.domain.prompts.templates.strictness import STRICTNESS_INSTRUCTIO
 # Opus 4.8 only caches a prefix of at least this many tokens; a shorter prefix
 # silently does not cache. The real check is the gated live cache test.
 CACHE_MIN_TOKENS = 4096
+
+# Rolling memory window (issue #41): Sophie sees her most recent annotations in every
+# chunk call so consecutive comments stay consistent and non-redundant. Deliberately a
+# code constant, not configuration (PM decision).
+RECENT_FINDINGS_IN_PROMPT = 10
+
+
+def build_user_message(chunk_text: str, recent_findings: Sequence[Finding]) -> str:
+    # The recent-annotations block is volatile per call, so it lives in the user message —
+    # strictly AFTER the cache breakpoint. The cached system prefix stays byte-stable (§7).
+    if not recent_findings:
+        return chunk_text
+    lines = [
+        "Deine letzten Anmerkungen. Bleibe konsistent dazu, wiederhole keine davon "
+        "und widersprich ihnen nicht:"
+    ]
+    for finding in recent_findings[-RECENT_FINDINGS_IN_PROMPT:]:
+        suggestion = finding.suggestion
+        lines.append(f"- „{suggestion.original_text}“ → „{suggestion.proposed_change}“")
+    lines.extend(("", "Der zu prüfende Abschnitt:", chunk_text))
+    return "\n".join(lines)
 
 
 def estimate_tokens(text: str) -> int:
