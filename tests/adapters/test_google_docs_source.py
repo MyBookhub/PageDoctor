@@ -104,12 +104,53 @@ def test_read_builds_index_map_mapping_runs_to_docs_indices() -> None:
     ]
 
 
-def test_read_requests_the_target_doc() -> None:
+def test_read_requests_the_target_doc_with_all_tabs() -> None:
     client = _service(_document())
 
     _source(client).read("doc-1")
 
-    client.documents.return_value.get.assert_called_once_with(documentId="doc-1")
+    client.documents.return_value.get.assert_called_once_with(
+        documentId="doc-1", includeTabsContent=True
+    )
+
+
+def _paragraph(text: str, start_index: int = 1) -> dict[str, Any]:
+    return {"paragraph": {"elements": [{"startIndex": start_index, "textRun": {"content": text}}]}}
+
+
+def _tab(text: str, children: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    return {
+        "documentTab": {"body": {"content": [_paragraph(text)]}},
+        "childTabs": children or [],
+    }
+
+
+def test_read_concatenates_all_tabs_in_display_order() -> None:
+    # A tabbed book: without includeTabsContent the API serves only the first tab —
+    # the review must see every chapter.
+    document = {
+        "tabs": [
+            _tab("Kapitel eins.\n"),
+            _tab("Kapitel zwei.\n", children=[_tab("Unterkapitel zwei-a.\n")]),
+            _tab("Kapitel drei.\n"),
+        ]
+    }
+
+    result = _source(_service(document)).read("doc-1")
+
+    assert result.text == "Kapitel eins.\nKapitel zwei.\nUnterkapitel zwei-a.\nKapitel drei.\n"
+    assert result.index_map.plain_text_length == len(result.text)
+
+
+def test_tabbed_document_wins_over_legacy_body() -> None:
+    document = {
+        "body": {"content": [_paragraph("Nur der erste Tab.\n")]},
+        "tabs": [_tab("Tab eins.\n"), _tab("Tab zwei.\n")],
+    }
+
+    result = _source(_service(document)).read("doc-1")
+
+    assert result.text == "Tab eins.\nTab zwei.\n"
 
 
 def test_empty_document_yields_empty_text() -> None:
