@@ -67,7 +67,7 @@ def test_returns_german_findings(client: anthropic.Anthropic) -> None:
     provider = AnthropicLlmProvider(client, model=settings.anthropic_model, effort="low")
     text = "Das ist ein Rezpet, dass wirklich gut schmeckt."
     chunk = TextChunk(index=0, text=text, start_offset=0, end_offset=len(text))
-    result = provider.analyze(chunk, _config())
+    result = provider.analyze(chunk, _config(), ())
     assert result.findings
     reasons = " ".join(finding.suggestion.reason_de for finding in result.findings)
     assert reasons.strip()

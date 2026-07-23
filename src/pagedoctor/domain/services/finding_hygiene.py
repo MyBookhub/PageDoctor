@@ -7,14 +7,21 @@ from pagedoctor.domain.models.finding import Finding
 # "…prüfen.reason.") and JSON syntax ("…eingeschlichen.},"). Stripping is confined to
 # these exact trailing shapes; original_text is never touched — it must stay byte-exact
 # for quote-and-locate (issue #40).
+# Possessive quantifiers throughout: the adjacent character classes overlap ("." lives in
+# both [\s.] and \.?), which with ordinary quantifiers is the classic catastrophic-
+# backtracking shape — degenerate model output like "{}"*3000 hung the engine for minutes
+# in review. Possessive matching plus the bounded scan window keep this flat.
 _FIELD_NAME_ARTIFACT = re.compile(
-    r"(?:[\s.]*\b(?:original_text|proposed_change|reason_de|reason|category|categorie|priority)\b\.?)+\s*$",
+    r"(?:[\s.]*+\b(?:original_text|proposed_change|reason_de|reason|category|categorie|priority)\b\.?+)++\s*+$",
     re.IGNORECASE,
 )
 # Braces never end legitimate German prose; commas/quotes are stripped only when they
 # accompany a brace, so ordinary sentence-final punctuation stays intact.
-_JSON_ARTIFACT = re.compile(r"[\s,\"']*[}{]+[\s,\"'}{]*$")
+_JSON_ARTIFACT = re.compile(r"[\s,\"']*+[}{]++[\s,\"'}{]*+$")
 _SENTENCE_END = (".", "!", "?", "…", "“", "‘", '"')
+# Artifacts are trailing junk a few tokens long; scanning only the tail bounds regex time
+# no matter how degenerate the full text is.
+_ARTIFACT_SCAN_WINDOW = 512
 
 
 def strip_field_name_artifacts(text: str) -> str:
@@ -29,10 +36,13 @@ def strip_field_name_artifacts(text: str) -> str:
 
 
 def strip_one_artifact_layer(text: str) -> str:
-    without_json = _JSON_ARTIFACT.sub("", text).rstrip()
-    if without_json and without_json != text:
-        return without_json
-    match = _FIELD_NAME_ARTIFACT.search(text)
+    scan_from = max(0, len(text) - _ARTIFACT_SCAN_WINDOW)
+    json_match = _JSON_ARTIFACT.search(text, scan_from)
+    if json_match is not None:
+        without_json = text[: json_match.start()].rstrip()
+        if without_json:
+            return without_json
+    match = _FIELD_NAME_ARTIFACT.search(text, scan_from)
     if match is None:
         return text
     stripped = text[: match.start()].rstrip()
