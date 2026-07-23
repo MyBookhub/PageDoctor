@@ -2,10 +2,10 @@ import random
 import time
 from collections.abc import Callable
 
-# The simulated working session lands in a 105–120 minute window, so the finished copy
-# appears "after about two hours" without being suspiciously exact.
-MIN_TOTAL_SECONDS = 105 * 60
-MAX_TOTAL_SECONDS = 120 * 60
+# The session total lands in [87.5%, 100%] of the configured target, so the copy appears
+# "after about N minutes" without being suspiciously exact (120 min -> 105-120 min).
+WINDOW_LOWER_FRACTION = 0.875
+DEFAULT_TOTAL_MINUTES = 120
 
 
 class HumanWorkPacer:
@@ -15,16 +15,19 @@ class HumanWorkPacer:
 
     def __init__(
         self,
+        total_minutes: int = DEFAULT_TOTAL_MINUTES,
         rng: random.Random | None = None,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
+        self.max_total_seconds = total_minutes * 60
+        self.min_total_seconds = self.max_total_seconds * WINDOW_LOWER_FRACTION
         self._rng = rng or random.Random()
         self._sleep = sleep
 
     def plan(self, pause_count: int) -> list[float]:
         # One interval per pause, never fewer than one — even a clean manuscript takes
         # reading time before the copy appears.
-        total = self._rng.uniform(MIN_TOTAL_SECONDS, MAX_TOTAL_SECONDS)
+        total = self._rng.uniform(self.min_total_seconds, self.max_total_seconds)
         weights = [self._rng.random() + 0.05 for _ in range(max(1, pause_count))]
         scale = total / sum(weights)
         return [weight * scale for weight in weights]

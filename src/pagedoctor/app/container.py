@@ -59,7 +59,11 @@ def build_container(settings: Settings) -> Container:
             output=DocxCopyOutputAdapter(
                 build_drive_service(settings),
                 settings.lektorat_folder_id,
-                pacer=HumanWorkPacer() if settings.simulate_human_work else None,
+                pacer=(
+                    HumanWorkPacer(total_minutes=settings.simulate_human_work_minutes)
+                    if settings.simulate_human_work
+                    else None
+                ),
             ),
             repository=repository,
             clock=clock,
