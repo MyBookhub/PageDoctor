@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Literal
 
 import anthropic
@@ -5,8 +6,8 @@ import anthropic
 from pagedoctor.domain.errors import LlmResponseInvalidError, TokenBudgetExceededError
 from pagedoctor.domain.models.config import ReviewConfig
 from pagedoctor.domain.models.document import TextChunk
-from pagedoctor.domain.models.finding import ChunkFindings
-from pagedoctor.domain.prompts.builder import build_prompt_bundle
+from pagedoctor.domain.models.finding import ChunkFindings, Finding
+from pagedoctor.domain.prompts.builder import build_prompt_bundle, build_user_message
 
 Effort = Literal["low", "medium", "high", "max"]
 
@@ -27,7 +28,9 @@ class AnthropicLlmProvider:
         self._token_budget = token_budget
         self._tokens_used = 0
 
-    def analyze(self, chunk: TextChunk, config: ReviewConfig) -> ChunkFindings:
+    def analyze(
+        self, chunk: TextChunk, config: ReviewConfig, recent_findings: Sequence[Finding]
+    ) -> ChunkFindings:
         if self._token_budget is not None and self._tokens_used >= self._token_budget:
             raise TokenBudgetExceededError(
                 f"token budget {self._token_budget} reached after {self._tokens_used} tokens"
@@ -44,7 +47,11 @@ class AnthropicLlmProvider:
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],
-                messages=[{"role": "user", "content": chunk.text}],
+                # Recent-annotations context is volatile, so it rides in the user message —
+                # strictly after the cache breakpoint; the system prefix stays byte-stable.
+                messages=[
+                    {"role": "user", "content": build_user_message(chunk.text, recent_findings)}
+                ],
                 thinking={"type": "adaptive"},
                 output_config={"effort": self._effort},
                 output_format=ChunkFindings,

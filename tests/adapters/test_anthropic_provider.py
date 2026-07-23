@@ -77,7 +77,7 @@ def test_analyze_sends_expected_request_and_returns_parsed() -> None:
     client.messages.parse.return_value = _response(_findings())
     chunk = _chunk()
 
-    result = _provider(client).analyze(chunk, _config())
+    result = _provider(client).analyze(chunk, _config(), ())
 
     assert result == _findings()
     kwargs = client.messages.parse.call_args.kwargs
@@ -91,18 +91,35 @@ def test_analyze_sends_expected_request_and_returns_parsed() -> None:
     assert kwargs["messages"][0]["content"] == chunk.text
 
 
+def test_recent_findings_ride_in_the_user_message_not_the_cached_prefix() -> None:
+    # Rolling memory (issue #41) is volatile per call — it must never enter the cached
+    # system prefix, or every call would invalidate the prompt cache (§7).
+    client = MagicMock()
+    client.messages.parse.return_value = _response(_findings())
+    chunk = _chunk()
+    recent = _findings().findings
+
+    _provider(client).analyze(chunk, _config(), recent)
+
+    kwargs = client.messages.parse.call_args.kwargs
+    user_content = kwargs["messages"][0]["content"]
+    assert "Deine letzten Anmerkungen" in user_content
+    assert chunk.text in user_content
+    assert "Deine letzten Anmerkungen" not in kwargs["system"][0]["text"]
+
+
 def test_missing_parsed_output_raises_invalid() -> None:
     client = MagicMock()
     client.messages.parse.return_value = _response(None)
     with pytest.raises(LlmResponseInvalidError):
-        _provider(client).analyze(_chunk(), _config())
+        _provider(client).analyze(_chunk(), _config(), ())
 
 
 def test_sdk_error_is_mapped_to_invalid() -> None:
     client = MagicMock()
     client.messages.parse.side_effect = anthropic.AnthropicError("boom")
     with pytest.raises(LlmResponseInvalidError):
-        _provider(client).analyze(_chunk(), _config())
+        _provider(client).analyze(_chunk(), _config(), ())
 
 
 def test_budget_trips_after_usage_accumulates() -> None:
@@ -110,8 +127,8 @@ def test_budget_trips_after_usage_accumulates() -> None:
     client.messages.parse.return_value = _response(_findings(), total=100)
     provider = _provider(client, token_budget=100)
 
-    provider.analyze(_chunk(), _config())
+    provider.analyze(_chunk(), _config(), ())
     with pytest.raises(TokenBudgetExceededError):
-        provider.analyze(_chunk(), _config())
+        provider.analyze(_chunk(), _config(), ())
 
     assert client.messages.parse.call_count == 1

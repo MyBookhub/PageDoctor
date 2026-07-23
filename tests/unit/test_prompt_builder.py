@@ -5,9 +5,12 @@ from pagedoctor.domain.models.config import (
     ReviewConfig,
     Strictness,
 )
+from pagedoctor.domain.models.finding import Category, Finding, Priority, Suggestion
 from pagedoctor.domain.prompts.builder import (
     CACHE_MIN_TOKENS,
+    RECENT_FINDINGS_IN_PROMPT,
     build_prompt_bundle,
+    build_user_message,
     estimate_tokens,
 )
 
@@ -78,3 +81,33 @@ def test_active_modes_are_described() -> None:
 def test_builder_is_deterministic() -> None:
     config = _config(book_type=BookType.COOKBOOK, recipe_mode=True, allowed=frozenset({"abc"}))
     assert build_prompt_bundle(config).system_blocks == build_prompt_bundle(config).system_blocks
+
+
+def _memory_finding(quote: str, proposed: str = "besser") -> Finding:
+    return Finding(
+        suggestion=Suggestion(original_text=quote, proposed_change=proposed, reason_de="r"),
+        category=Category.PROOFREADING,
+        priority=Priority.FEHLER,
+    )
+
+
+def test_user_message_without_recent_findings_is_the_bare_chunk() -> None:
+    assert build_user_message("Der Text.", ()) == "Der Text."
+
+
+def test_user_message_lists_recent_findings_before_the_chunk() -> None:
+    message = build_user_message("Der Text.", [_memory_finding("Fussili", "Fusilli")])
+
+    assert message.startswith("Deine letzten Anmerkungen")
+    assert "„Fussili“ → „Fusilli“" in message
+    assert message.endswith("Der zu prüfende Abschnitt:\nDer Text.")
+
+
+def test_user_message_caps_the_memory_window() -> None:
+    findings = [_memory_finding(f"Zitat {n}") for n in range(RECENT_FINDINGS_IN_PROMPT + 5)]
+
+    message = build_user_message("Der Text.", findings)
+
+    assert "Zitat 0" not in message
+    assert f"Zitat {RECENT_FINDINGS_IN_PROMPT + 4}" in message
+    assert message.count("→") == RECENT_FINDINGS_IN_PROMPT
