@@ -13,7 +13,7 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from pagedoctor.adapters.google.docx_copy_output import DocxCopyOutputAdapter
-from pagedoctor.adapters.pacing import MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, HumanWorkPacer
+from pagedoctor.adapters.pacing import HumanWorkPacer
 from pagedoctor.domain.errors import DocumentAccessDeniedError, OutputCopyError
 from pagedoctor.domain.models.config import BookType, CheckMode, ReviewConfig, Strictness
 from pagedoctor.domain.models.consistency import ConsistencyReport
@@ -208,7 +208,7 @@ def test_paced_run_sleeps_through_a_simulated_session_then_uploads() -> None:
 
     assert result.output_doc_id == "copy-new"
     assert len(slept) == 2
-    assert MIN_TOTAL_SECONDS <= sum(slept) <= MAX_TOTAL_SECONDS
+    assert pacer.min_total_seconds <= sum(slept) <= pacer.max_total_seconds
     assert client.files.return_value.create.call_count == 1
 
 
